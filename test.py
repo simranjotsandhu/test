@@ -58,3 +58,9 @@ query = "What is the average sales price in the dataset?"
 response = index.query(query)
 
 print("Query Result:", response)
+
+
++++++++
+
+from sqlalchemy import create_engine
+engine = create_engine("sqlite:///your_database.db")
