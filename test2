@@ -140,3 +140,76 @@ if __name__ == "__main__":
         print("Error executing query:")
         print(f"Query: {result['query']}")
         print(f"Error: {result['message']}")
+
+
+import re
+from sqlparse import parse, format
+
+def clean_sql_response(raw_response):
+    """Extract only SQL code from LLM response"""
+    # Remove potential markdown code blocks
+    cleaned = re.sub(r'```sql\n?|\n?```', '', raw_response, flags=re.IGNORECASE)
+    
+    # Find first SQL statement using sqlparse
+    statements = parse(cleaned)
+    if statements:
+        # Format and return the first valid SQL statement
+        return format(str(statements[0]), strip_comments=True).strip()
+    return None
+
+def validate_sql(query):
+    """Basic SQL validation"""
+    # Check for forbidden operations
+    forbidden = ['insert', 'update', 'delete', 'drop', 'alter', ';']
+    if any(op in query.lower() for op in forbidden):
+        return False
+    return True
+
+# Modified generate_sql function
+def generate_sql(query, schema, tokenizer, model):
+    prompt = f"""You are a SQL expert. Given this table schema:
+{schema}
+Generate a SQL query for: {query}
+Return ONLY the SQL code with no explanations, formatting, or additional text.
+Example response: SELECT * FROM table WHERE condition"""
+
+    inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
+    outputs = model.generate(**inputs, max_new_tokens=200)
+    raw_sql = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    
+    # Clean and validate the SQL
+    cleaned_sql = clean_sql_response(raw_sql)
+    if cleaned_sql and validate_sql(cleaned_sql):
+        return cleaned_sql
+    raise ValueError(f"Invalid SQL generated: {raw_sql}")
+
+# Updated execution flow
+def main(csv_path):
+    engine = load_csv_to_sql(csv_path)
+    tokenizer, model = setup_llm()
+    
+    with engine.connect() as conn:
+        schema = conn.execute(text("SELECT sql FROM sqlite_master WHERE type='table';")).fetchone()[0]
+
+    while True:
+        try:
+            nl_query = input("\nEnter question (or 'exit'): ")
+            if nl_query.lower() == 'exit':
+                break
+
+            sql_query = generate_sql(nl_query, schema, tokenizer, model)
+            print(f"\nCleaned SQL: {sql_query}")
+            
+            result = execute_query(engine, sql_query)
+            if isinstance(result, pd.DataFrame):
+                print(f"\n{result.to_markdown(index=False)}")
+            else:
+                print(result)
+                
+        except Exception as e:
+            print(f"Error: {str(e)}")
+
+# Additional requirements
+# pip install sqlparse
+
+
