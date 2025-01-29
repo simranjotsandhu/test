@@ -119,5 +119,21 @@ class SQLAlchemyDatabase:
         result = self.connection.execute(query)
         return result.fetchall()
 
+____
+# Create a custom wrapper for the SQLAlchemy connection
+class SQLAlchemyDatabase:
+    def __init__(self, connection: Connection):
+        self.connection = connection
+
+    def get_usable_table_names(self):
+        # Execute the query properly using SQLAlchemy's connection object
+        result = self.connection.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        return [row[0] for row in result.fetchall()]
+
+    def query(self, query: str):
+        # Execute a query and return results using SQLAlchemy's method
+        result = self.connection.execute(query)
+        return result.fetchall()
+
 
 
