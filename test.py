@@ -103,6 +103,21 @@ print("Query Result:", response)
 # Close the connection when done
 conn.close()
 
+_______
+# Create a custom wrapper for the SQLAlchemy connection
+class SQLAlchemyDatabase:
+    def __init__(self, connection: Connection):
+        self.connection = connection
+
+    def get_usable_table_names(self):
+        # Get all table names from the database
+        result = self.connection.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        return [row[0] for row in result]
+
+    def query(self, query: str):
+        # Execute a query
+        result = self.connection.execute(query)
+        return result.fetchall()
 
 
 
