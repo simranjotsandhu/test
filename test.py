@@ -1,4 +1,7 @@
-from llama_index import SQLDatabase, GPTSQLStructStoreIndex
+from llama_index.core import SQLDatabase
+from llama_index.core.indices.struct_store import GPTSQLStructStoreIndex
+
+# from llama_index import SQLDatabase, GPTSQLStructStoreIndex
 from llama_index.llms import LlamaCPP
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
