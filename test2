@@ -1,97 +1,42 @@
-
-
-pip install pandas sqlalchemy transformers torch
-
-
-
-import pandas as pd
-from sqlalchemy import create_engine
-
-# Read CSV file
-df = pd.read_csv("your_data.csv")
-
-# Create an in-memory SQLite database
-engine = create_engine("sqlite:///:memory:")
-
-# Load DataFrame into SQL table
-df.to_sql("data_table", engine, index=False)
-
-
-
-
-
-from sqlalchemy import inspect
-
-# Get table schema
-inspector = inspect(engine)
-columns = inspector.get_columns("data_table")
-schema = {col["name"]: col["type"] for col in columns}
-schema_str = ", ".join([f"{name} ({type})" for name, type in schema.items()])
-
-
-
-
-
-from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
-# Load Llama model and tokenizer (ensure you have access to the model)
-model_name = "meta-llama/Llama-2-7b-chat-hf"
+# Load LLaMA model and tokenizer from Hugging Face
+model_name = "meta/llama-3.2b"  # Replace with the correct model path or identifier
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(
-    model_name, torch_dtype=torch.float16, device_map="auto"
-)
+model = AutoModelForCausalLM.from_pretrained(model_name)
 
+# Function to generate SQL query
+def generate_sql(nl_query: str, schema: dict) -> str:
+    # Convert schema into a string that the model can understand
+    schema_str = ""
+    for table, columns in schema.items():
+        schema_str += f"Table {table} has columns: {', '.join(columns)}.\n"
 
+    # Combine the natural language query with the schema
+    input_text = f"Given the schema:\n{schema_str}\nTranslate the following natural language query into SQL:\n{nl_query}\nSQL Query:"
 
+    # Tokenize the input
+    inputs = tokenizer(input_text, return_tensors="pt")
 
+    # Generate the SQL query (with max length constraint)
+    outputs = model.generate(inputs["input_ids"], max_length=200, num_return_sequences=1, no_repeat_ngram_size=2)
 
-
-def generate_sql(user_query: str, schema_str: str) -> str:
-    # Format prompt for Llama
-    prompt = f"""You are a SQL expert. Given this table schema:
-    Table: data_table
-    Columns: {schema_str}
-
-    Write a SQL query to answer: "{user_query}"
-    Return ONLY the SQL query, no explanations.
-    """
-
-    # Tokenize and generate
-    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-    outputs = model.generate(**inputs, max_new_tokens=200)
+    # Decode the output
     sql_query = tokenizer.decode(outputs[0], skip_special_tokens=True)
     
-    # Extract SQL from the response (assuming the model returns only the query)
-    return sql_query.strip()
+    # Strip the leading prompt to get only the generated SQL
+    return sql_query.split('SQL Query:')[-1].strip()
 
+# Example schema
+schema = {
+    "employees": ["id", "name", "position", "salary"],
+    "departments": ["id", "department_name", "location"],
+}
 
+# Example natural language query
+nl_query = "What are the names of all employees in the HR department?"
 
-
-
-def execute_sql(sql_query: str):
-    try:
-        with engine.connect() as conn:
-            result = conn.execute(sql_query)
-            return result.fetchall()
-    except Exception as e:
-        return f"Error executing query: {e}"
-
-
-
-
-
-# Get user input
-user_question = input("Enter your question in natural language: ")
-
-# Generate SQL
-sql_query = generate_sql(user_question, schema_str)
-print(f"Generated SQL: {sql_query}")
-
-# Execute and display results
-results = execute_sql(sql_query)
-print("Results:", results)
-
-
-
-
+# Generate the SQL query
+sql_query = generate_sql(nl_query, schema)
+print("Generated SQL Query:", sql_query)
