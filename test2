@@ -1,0 +1,39 @@
+import pandas as pd
+import pandasql as ps
+
+# Load data into pandas DataFrame
+# For example, from a CSV file
+# df = pd.read_csv('your_data.csv')
+
+# Alternatively, if you want to use an SQLite database file
+import sqlite3
+
+# Connect to your SQL file (SQLite database)
+conn = sqlite3.connect('your_database.db')
+
+# Function to execute a SQL query based on natural language input
+def execute_query(natural_query):
+    # Transform natural language query into SQL
+    # This transformation needs to be implemented based on your use case
+    sql_query = natural_query_to_sql(natural_query)
+    
+    # Execute SQL query
+    result = pd.read_sql_query(sql_query, conn)
+    return result
+
+# Placeholder for your natural language to SQL transformation logic
+# This transformation can be done using NLP techniques or predefined mappings
+# Here's a very basic example of predefined mapping
+def natural_query_to_sql(natural_query):
+    if natural_query.lower() == "show all data":
+        return "SELECT * FROM your_table_name"
+    # Add more conditions for different queries
+    
+    return ""
+
+# Example usage
+result = execute_query("show all data")
+print(result)
+
+# Close connection
+conn.close()
