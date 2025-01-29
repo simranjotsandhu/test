@@ -1,13 +1,9 @@
-# Install required packages first
-# pip install llama-index-core llama-index-llms-huggingface transformers torch
-
 from llama_index.llms.huggingface import HuggingFaceLLM
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 def setup_llama3():
     model_id = "meta-llama/Meta-Llama-3-8B-Instruct"
     
-    # Load tokenizer and model
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
@@ -15,14 +11,14 @@ def setup_llama3():
         torch_dtype="auto",
     )
 
-    # Initialize HuggingFaceLLM with correct arguments
     return HuggingFaceLLM(
         model=model,
         tokenizer=tokenizer,
         max_new_tokens=150,
-        generation_kwargs={
-            "temperature": 0.1,
-            "do_sample": False,
-            "eos_token_id": tokenizer.eos_token_id,
-        },
+        temperature=0.1,
+        do_sample=False,
+        tokenizer_kwargs={"max_length": 4096},
+        # Additional parameters if needed:
+        # context_window=4096,
+        # model_kwargs={"trust_remote_code": True},
     )
