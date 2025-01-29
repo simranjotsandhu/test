@@ -64,3 +64,45 @@ print("Query Result:", response)
 
 from sqlalchemy import create_engine
 engine = create_engine("sqlite:///your_database.db")
+
+++++++
+from llama_index import GPTSQLStructStoreIndex
+from llama_index.llms import OpenAI
+from sqlalchemy import create_engine
+import pandas as pd
+
+# Example for SQLite, but you can use any database engine with SQLAlchemy
+DATABASE_URL = "sqlite:///database.db"  # Change this to your database URL
+engine = create_engine(DATABASE_URL)
+
+# Create a connection to the database
+conn = engine.connect()
+
+# Example: Load a CSV into SQL (replace with your actual CSV file path)
+csv_file = "data.csv"
+df = pd.read_csv(csv_file)
+
+# Load DataFrame into SQL table
+df.to_sql('data_table', conn, if_exists='replace', index=False)
+
+# Initialize SQLAlchemy engine in LlamaIndex
+sql_database = conn  # Use SQLAlchemy connection directly
+
+# Initialize OpenAI model (or any other LLM you wish to use)
+llm = OpenAI(model="gpt-4")
+
+# Create an index with SQLAlchemy Engine and LLM
+index = GPTSQLStructStoreIndex.from_documents([], sql_database=sql_database, llm=llm)
+
+# Perform a natural language SQL query
+query = "What is the average sales price in the dataset?"
+response = index.query(query)
+
+print("Query Result:", response)
+
+# Close the connection when done
+conn.close()
+
+
+
+
