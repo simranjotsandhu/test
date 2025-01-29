@@ -1,24 +1,97 @@
-from llama_index.llms.huggingface import HuggingFaceLLM
+
+
+pip install pandas sqlalchemy transformers torch
+
+
+
+import pandas as pd
+from sqlalchemy import create_engine
+
+# Read CSV file
+df = pd.read_csv("your_data.csv")
+
+# Create an in-memory SQLite database
+engine = create_engine("sqlite:///:memory:")
+
+# Load DataFrame into SQL table
+df.to_sql("data_table", engine, index=False)
+
+
+
+
+
+from sqlalchemy import inspect
+
+# Get table schema
+inspector = inspect(engine)
+columns = inspector.get_columns("data_table")
+schema = {col["name"]: col["type"] for col in columns}
+schema_str = ", ".join([f"{name} ({type})" for name, type in schema.items()])
+
+
+
+
+
 from transformers import AutoTokenizer, AutoModelForCausalLM
+import torch
 
-def setup_llama3():
-    model_id = "meta-llama/Meta-Llama-3-8B-Instruct"
+# Load Llama model and tokenizer (ensure you have access to the model)
+model_name = "meta-llama/Llama-2-7b-chat-hf"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(
+    model_name, torch_dtype=torch.float16, device_map="auto"
+)
+
+
+
+
+
+
+def generate_sql(user_query: str, schema_str: str) -> str:
+    # Format prompt for Llama
+    prompt = f"""You are a SQL expert. Given this table schema:
+    Table: data_table
+    Columns: {schema_str}
+
+    Write a SQL query to answer: "{user_query}"
+    Return ONLY the SQL query, no explanations.
+    """
+
+    # Tokenize and generate
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+    outputs = model.generate(**inputs, max_new_tokens=200)
+    sql_query = tokenizer.decode(outputs[0], skip_special_tokens=True)
     
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_id,
-        device_map="auto",
-        torch_dtype="auto",
-    )
+    # Extract SQL from the response (assuming the model returns only the query)
+    return sql_query.strip()
 
-    return HuggingFaceLLM(
-        model=model,
-        tokenizer=tokenizer,
-        max_new_tokens=150,
-        temperature=0.1,
-        do_sample=False,
-        tokenizer_kwargs={"max_length": 4096},
-        # Additional parameters if needed:
-        # context_window=4096,
-        # model_kwargs={"trust_remote_code": True},
-    )
+
+
+
+
+def execute_sql(sql_query: str):
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(sql_query)
+            return result.fetchall()
+    except Exception as e:
+        return f"Error executing query: {e}"
+
+
+
+
+
+# Get user input
+user_question = input("Enter your question in natural language: ")
+
+# Generate SQL
+sql_query = generate_sql(user_question, schema_str)
+print(f"Generated SQL: {sql_query}")
+
+# Execute and display results
+results = execute_sql(sql_query)
+print("Results:", results)
+
+
+
+
