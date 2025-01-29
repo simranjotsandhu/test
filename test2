@@ -1,75 +1,28 @@
-# Install required packages
-# pip install llama-index-core llama-index-llms-huggingface pandas sqlalchemy transformers torch
+# Install required packages first
+# pip install llama-index-core llama-index-llms-huggingface transformers torch
 
-import pandas as pd
-from sqlalchemy import create_engine
-from llama_index.core import SQLDatabase, ServiceContext
-from llama_index.core.query_engine import NLSQLTableQueryEngine
 from llama_index.llms.huggingface import HuggingFaceLLM
-from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
-# 1. Load CSV data into SQL database
-def load_csv_to_sql(csv_path, table_name="data_table"):
-    df = pd.read_csv(csv_path)
-    engine = create_engine("sqlite:///:memory:")  # In-memory SQLite database
-    df.to_sql(table_name, engine)
-    return engine
-
-# 2. Initialize Llama 3 model
 def setup_llama3():
     model_id = "meta-llama/Meta-Llama-3-8B-Instruct"
     
+    # Load tokenizer and model
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
-        device_map="auto",  # Automatically uses GPU if available
+        device_map="auto",
         torch_dtype="auto",
     )
-    
-    text_gen_pipeline = pipeline(
-        "text-generation",
+
+    # Initialize HuggingFaceLLM with correct arguments
+    return HuggingFaceLLM(
         model=model,
         tokenizer=tokenizer,
         max_new_tokens=150,
-        do_sample=False
+        generation_kwargs={
+            "temperature": 0.1,
+            "do_sample": False,
+            "eos_token_id": tokenizer.eos_token_id,
+        },
     )
-    
-    return HuggingFaceLLM(pipeline=text_gen_pipeline)
-
-# 3. Setup query engine
-def create_query_engine(engine, table_name="data_table"):
-    # Create SQLDatabase object
-    sql_database = SQLDatabase(engine, include_tables=[table_name])
-    
-    # Initialize LLM
-    llm = setup_llama3()
-    
-    # Create service context
-    service_context = ServiceContext.from_defaults(llm=llm)
-    
-    # Create natural language query engine
-    return NLSQLTableQueryEngine(
-        sql_database=sql_database,
-        tables=[table_name],
-        service_context=service_context
-    )
-
-# 4. Execute queries
-def main():
-    # Load your CSV file
-    csv_path = "your_data.csv"  # Replace with your CSV path
-    sql_engine = load_csv_to_sql(csv_path)
-    
-    # Create query engine
-    query_engine = create_query_engine(sql_engine)
-    
-    # Example query
-    natural_language_query = "What is the average age of customers in the data?"
-    response = query_engine.query(natural_language_query)
-    
-    print(f"Natural Language Query: {natural_language_query}")
-    print(f"Generated SQL: {response.metadata['sql_query']}")
-    print(f"Result: {response}")
-
-if __name__ == "__main__":
-    main()
