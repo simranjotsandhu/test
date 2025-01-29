@@ -81,3 +81,62 @@ def main(csv_path):
 if __name__ == "__main__":
     csv_path = "your_data.csv"  # Replace with your CSV file path
     main(csv_path)
+
+
+
+
+import pandas as pd
+from sqlalchemy import create_engine, text
+
+def execute_sql_query(engine, generated_query):
+    """
+    Executes a SQL query on the database and returns formatted results
+    """
+    try:
+        with engine.connect() as connection:
+            # Validate and execute query
+            result = connection.execute(text(generated_query))
+            
+            # Convert to pandas DataFrame for nice formatting
+            df = pd.DataFrame(result.fetchall(), columns=result.keys())
+            
+            return {
+                "status": "success",
+                "data": df,
+                "row_count": len(df)
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "query": generated_query
+        }
+
+# Full workflow example
+if __name__ == "__main__":
+    # 1. Load your CSV data
+    csv_path = "sales_data.csv"
+    df = pd.read_csv(csv_path)
+    
+    # Sample data (if you need to create test data):
+    # data = {'product': ['A', 'B', 'A'], 'sales': [100, 200, 150]}
+    # df = pd.DataFrame(data)
+    
+    # 2. Create in-memory SQL database
+    engine = create_engine('sqlite:///:memory:')
+    df.to_sql('sales', engine, index=False, if_exists='replace')
+    
+    # 3. Generated query (this would come from your LLM in practice)
+    generated_query = "SELECT product, SUM(sales) as total_sales FROM sales GROUP BY product"
+    
+    # 4. Execute and display results
+    result = execute_sql_query(engine, generated_query)
+    
+    if result['status'] == 'success':
+        print(f"Query executed successfully. Found {result['row_count']} rows")
+        print("\nResults:")
+        print(result['data'])
+    else:
+        print("Error executing query:")
+        print(f"Query: {result['query']}")
+        print(f"Error: {result['message']}")
