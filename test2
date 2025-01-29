@@ -1,39 +1,83 @@
 import pandas as pd
-import pandasql as ps
+from sqlalchemy import create_engine, text
+from transformers import AutoTokenizer, AutoModelForCausalLM
+import torch
 
-# Load data into pandas DataFrame
-# For example, from a CSV file
-# df = pd.read_csv('your_data.csv')
-
-# Alternatively, if you want to use an SQLite database file
-import sqlite3
-
-# Connect to your SQL file (SQLite database)
-conn = sqlite3.connect('your_database.db')
-
-# Function to execute a SQL query based on natural language input
-def execute_query(natural_query):
-    # Transform natural language query into SQL
-    # This transformation needs to be implemented based on your use case
-    sql_query = natural_query_to_sql(natural_query)
+# Step 1: Load CSV data into SQL database
+def load_csv_to_sql(csv_path, table_name='data'):
+    # Read CSV file
+    df = pd.read_csv(csv_path)
     
-    # Execute SQL query
-    result = pd.read_sql_query(sql_query, conn)
-    return result
-
-# Placeholder for your natural language to SQL transformation logic
-# This transformation can be done using NLP techniques or predefined mappings
-# Here's a very basic example of predefined mapping
-def natural_query_to_sql(natural_query):
-    if natural_query.lower() == "show all data":
-        return "SELECT * FROM your_table_name"
-    # Add more conditions for different queries
+    # Create SQLite in-memory database
+    engine = create_engine('sqlite:///:memory:')
     
-    return ""
+    # Load data into database
+    df.to_sql(table_name, engine, index=False, if_exists='replace')
+    return engine
 
-# Example usage
-result = execute_query("show all data")
-print(result)
+# Step 2: Set up LLM for SQL generation
+def setup_llm():
+    model_name = "meta-llama/Meta-Llama-3-8B-Instruct"  # Use appropriate model version
+    
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        torch_dtype=torch.bfloat16,
+        device_map="auto"
+    )
+    return tokenizer, model
 
-# Close connection
-conn.close()
+# Step 3: Generate SQL from natural language
+def generate_sql(query, schema, tokenizer, model):
+    prompt = f"""You are a SQL expert. Given this table schema:
+{schema}
+Generate a SQL query for: {query}
+Return ONLY the SQL code with no explanations or formatting."""
+    
+    inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
+    outputs = model.generate(**inputs, max_new_tokens=200)
+    return tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+# Step 4: Execute SQL query
+def execute_query(engine, sql_query):
+    try:
+        with engine.connect() as conn:
+            result = pd.read_sql(text(sql_query), conn)
+        return result
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+# Main workflow
+def main(csv_path):
+    # Load data
+    engine = load_csv_to_sql(csv_path)
+    
+    # Get schema information
+    with engine.connect() as conn:
+        schema = conn.execute(text("SELECT sql FROM sqlite_master WHERE type='table';")).fetchone()[0]
+    
+    # Setup LLM
+    tokenizer, model = setup_llm()
+    
+    # Interactive queries
+    while True:
+        try:
+            nl_query = input("\nEnter your question (or 'exit' to quit): ")
+            if nl_query.lower() == 'exit':
+                break
+            
+            # Generate SQL
+            sql_query = generate_sql(nl_query, schema, tokenizer, model)
+            print(f"\nGenerated SQL: {sql_query}")
+            
+            # Execute query
+            result = execute_query(engine, sql_query)
+            print("\nResult:")
+            print(result)
+            
+        except Exception as e:
+            print(f"Error processing query: {str(e)}")
+
+if __name__ == "__main__":
+    csv_path = "your_data.csv"  # Replace with your CSV file path
+    main(csv_path)
