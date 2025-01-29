@@ -1,95 +1,75 @@
-# First install required packages
-# pip install pandas transformers torch sqlite3
+# Install required packages
+# pip install llama-index-core llama-index-llms-huggingface pandas sqlalchemy transformers torch
 
 import pandas as pd
-import sqlite3
-import re
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from sqlalchemy import create_engine
+from llama_index.core import SQLDatabase, ServiceContext
+from llama_index.core.query_engine import NLSQLTableQueryEngine
+from llama_index.llms.huggingface import HuggingFaceLLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 
-# Step 1: Load CSV data into SQLite
-def load_csv_to_sqlite(csv_path, db_name='data.db', table_name='my_table'):
+# 1. Load CSV data into SQL database
+def load_csv_to_sql(csv_path, table_name="data_table"):
     df = pd.read_csv(csv_path)
-    conn = sqlite3.connect(db_name)
-    df.to_sql(table_name, conn, if_exists='replace', index=False)
-    return conn
+    engine = create_engine("sqlite:///:memory:")  # In-memory SQLite database
+    df.to_sql(table_name, engine)
+    return engine
 
-# Step 2: Get database schema information
-def get_schema(conn, table_name):
-    cursor = conn.cursor()
-    cursor.execute(f"PRAGMA table_info({table_name});")
-    columns = cursor.fetchall()
+# 2. Initialize Llama 3 model
+def setup_llama3():
+    model_id = "meta-llama/Meta-Llama-3-8B-Instruct"
     
-    schema = []
-    for col in columns:
-        schema.append(f"{col[1]} ({col[2]})")
-    return f"Table {table_name} with columns: {', '.join(schema)}"
-
-# Step 3: Initialize the language model
-def initialize_model():
-    model_name = "NousResearch/Hermes-2-Pro-Llama-3-8B"  # Using similar open model
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForCausalLM.from_pretrained(model_name)
-    return tokenizer, model
-
-# Step 4: Generate SQL from natural language
-def generate_sql(query, schema, tokenizer, model):
-    prompt = f"""You are an SQL expert. Given this database schema: {schema}
-    Convert this natural language query to SQL: {query}
-    Return only the SQL query without explanations in this format:
-    ```sql
-    SELECT * FROM table
-    ```"""
+    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    model = AutoModelForCausalLM.from_pretrained(
+        model_id,
+        device_map="auto",  # Automatically uses GPU if available
+        torch_dtype="auto",
+    )
     
-    inputs = tokenizer(prompt, return_tensors="pt", max_length=1024, truncation=True)
-    outputs = model.generate(**inputs, max_new_tokens=200)
-    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    text_gen_pipeline = pipeline(
+        "text-generation",
+        model=model,
+        tokenizer=tokenizer,
+        max_new_tokens=150,
+        do_sample=False
+    )
     
-    # Extract SQL from response
-    sql_match = re.search(r'```sql(.*?)```', response, re.DOTALL)
-    return sql_match.group(1).strip() if sql_match else response
+    return HuggingFaceLLM(pipeline=text_gen_pipeline)
 
-# Step 5: Execute SQL query
-def execute_query(conn, sql):
-    try:
-        cursor = conn.cursor()
-        cursor.execute(sql)
-        results = cursor.fetchall()
-        columns = [desc[0] for desc in cursor.description]
-        return pd.DataFrame(results, columns=columns)
-    except sqlite3.Error as e:
-        print(f"SQL Error: {e}")
-        return None
+# 3. Setup query engine
+def create_query_engine(engine, table_name="data_table"):
+    # Create SQLDatabase object
+    sql_database = SQLDatabase(engine, include_tables=[table_name])
+    
+    # Initialize LLM
+    llm = setup_llama3()
+    
+    # Create service context
+    service_context = ServiceContext.from_defaults(llm=llm)
+    
+    # Create natural language query engine
+    return NLSQLTableQueryEngine(
+        sql_database=sql_database,
+        tables=[table_name],
+        service_context=service_context
+    )
 
-# Main workflow
+# 4. Execute queries
 def main():
-    # Configuration
-    CSV_PATH = 'your_data.csv'
-    TABLE_NAME = 'my_table'
+    # Load your CSV file
+    csv_path = "your_data.csv"  # Replace with your CSV path
+    sql_engine = load_csv_to_sql(csv_path)
     
-    # Load data
-    conn = load_csv_to_sqlite(CSV_PATH, table_name=TABLE_NAME)
-    schema = get_schema(conn, TABLE_NAME)
+    # Create query engine
+    query_engine = create_query_engine(sql_engine)
     
-    # Initialize model
-    tokenizer, model = initialize_model()
+    # Example query
+    natural_language_query = "What is the average age of customers in the data?"
+    response = query_engine.query(natural_language_query)
     
-    # Query interface
-    while True:
-        nl_query = input("\nEnter your natural language query (or 'exit' to quit): ")
-        if nl_query.lower() == 'exit':
-            break
-        
-        # Generate SQL
-        sql_query = generate_sql(nl_query, schema, tokenizer, model)
-        print(f"\nGenerated SQL:\n{sql_query}")
-        
-        # Execute and show results
-        result = execute_query(conn, sql_query)
-        if result is not None:
-            print("\nQuery Results:")
-            print(result)
-
-    conn.close()
+    print(f"Natural Language Query: {natural_language_query}")
+    print(f"Generated SQL: {response.metadata['sql_query']}")
+    print(f"Result: {response}")
 
 if __name__ == "__main__":
     main()
