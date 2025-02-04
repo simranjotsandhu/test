@@ -52,5 +52,17 @@ response = index.query(query)
 
 print("Query Result:", response)
 
+
+
+# Main workflow
+user_question = input("Enter your question: ")
+sql_query = generate_sql(user_question, schema_str)
+
+if not validate_sql(sql_query):
+    print(f"Invalid SQL: {sql_query}")
+else:
+    print(f"Generated SQL: {sql_query}")
+    results = execute_sql(sql_query)
+    print("Results:", results)
 # Close the connection when done
 conn.close()
