@@ -30,3 +30,23 @@ model = get_peft_model(model, config)
 model.print_trainable_parameters()
 
 print("✅ LoRA Applied to Meta LLaMA 3.2 (1B)!")
+
+from datasets import load_dataset
+
+# Load dataset from JSON file
+dataset = load_dataset("json", data_files="sql_train.json")
+
+# Tokenization function
+def tokenize_function(examples):
+    inputs = [f"Question: {q}\nSQL:" for q in examples["nl_query"]]
+    targets = [s for s in examples["sql_query"]]
+    model_inputs = tokenizer(inputs, max_length=512, truncation=True, padding="max_length")
+    labels = tokenizer(targets, max_length=512, truncation=True, padding="max_length")["input_ids"]
+    model_inputs["labels"] = labels
+    return model_inputs
+
+# Tokenize dataset
+tokenized_datasets = dataset.map(tokenize_function, batched=True)
+
+print("✅ Dataset Tokenized Successfully!")
+
