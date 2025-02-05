@@ -1,0 +1,10 @@
+[
+  {
+    "nl_query": "What was the total revenue in Q1 2023?",
+    "sql_query": "SELECT SUM(revenue) FROM financial_data WHERE QUARTER(date) = 1 AND YEAR(date) = 2023;"
+  },
+  {
+    "nl_query": "Which customer spent the most?",
+    "sql_query": "SELECT customer_id, SUM(revenue) FROM financial_data GROUP BY customer_id ORDER BY SUM(revenue) DESC LIMIT 1;"
+  }
+]
