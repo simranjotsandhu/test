@@ -12,3 +12,8 @@ df.to_sql("financial_table", conn, if_exists="replace", index=False)
 # Extract Schema
 schema = {"table": "financial_table", "columns": list(df.columns)}
 print("📊 Extracted Schema:", schema)
+
+# Extract sample values for schema linking
+sample_values = {col: df[col].dropna().unique()[:5].tolist() for col in df.columns}
+print("📊 Sample Data Values:", sample_values)
+
