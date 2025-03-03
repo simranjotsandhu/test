@@ -5,9 +5,12 @@ import os
 
 # Global variable to store tagging results
 output_file = "tagged_results.csv"
+admin_password = "securepassword"  # Change this to a secure password
 
-def upload_excel(file):
-    """Handles file upload and validates the format."""
+def upload_excel(file, password):
+    """Handles file upload and validates the format, protected by a password."""
+    if password != admin_password:
+        return "Unauthorized: Incorrect password."
     if file is None:
         return "Please upload an Excel file."
     df = pd.read_excel(file.name)
@@ -47,10 +50,11 @@ def main():
         
         with gr.Tab("Upload File"):
             gr.Markdown("Upload an Excel file with 'URL', 'Company Name', and 'Tag' columns.")
+            password_input = gr.Textbox(label="Admin Password", type="password")
             upload_component = gr.File(label="Upload Excel File", file_types=[".xlsx"])
             upload_button = gr.Button("Upload")
             upload_output = gr.Textbox(label="Upload Status")
-            upload_button.click(upload_excel, inputs=[upload_component], outputs=[upload_output])
+            upload_button.click(upload_excel, inputs=[upload_component, password_input], outputs=[upload_output])
         
         with gr.Tab("Tag News URLs"):
             gr.Markdown("Tag each news URL based on its relevance.")
