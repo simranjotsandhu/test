@@ -1,3 +1,5 @@
+***Introduction and History of AI, future of LLMs and Agentic Systems and Realword applications for ECU sysmes and products (analysis, hiring, sales and support)***
+
 Artificial Intelligence (AI) has evolved significantly over the decades, with one of its most revolutionary advancements being **Large Language Models (LLMs)**. These models, such as **GPT (Generative Pre-trained Transformer)**, are built on deep mathematical foundations that enable them to understand and generate human-like text. In this discussion, we'll cover:
 
 1. **Historical Evolution of AI**
