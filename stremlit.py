@@ -1,10 +1,11 @@
+import argparse
 import gradio as gr
 import pandas as pd
 import os
 
 # Global variable to store tagging results
 tagged_data = []
-output_file = 'tagged_results.csv'
+output_file = "tagged_results.csv"
 
 # Function to handle file upload and parse the Excel file
 def upload_excel(file):
@@ -33,27 +34,37 @@ def show_summary():
     no_count = len(df[df['Tag'] == 'No'])
     return f"Total URLs: {total}\nRelated to Company (Yes): {yes_count}\nNot Related to Company (No): {no_count}"
 
-# Gradio Interface
-with gr.Blocks() as demo:
-    gr.Markdown("# News Tagging Application")
-    gr.Markdown("Upload an Excel file with 'URL', 'Company Name', and 'Tag' columns.")
+# Argument Parser for Command-line Execution
+def main():
+    parser = argparse.ArgumentParser(description="Run the Gradio News Tagging App")
+    parser.add_argument("--port", type=int, default=7860, help="Port to run the app on (default: 7860)")
+    parser.add_argument("--share", action="store_true", help="Generate a public Gradio link")
+    args = parser.parse_args()
 
-    upload_component = gr.File(label="Upload Excel File", file_count="single", type="file")
-    upload_button = gr.Button("Upload")
-    output_text = gr.Textbox(label="Upload Status")
-    upload_button.click(upload_excel, inputs=[upload_component], outputs=[output_text])
+    # Gradio Interface
+    with gr.Blocks() as demo:
+        gr.Markdown("# News Tagging Application")
+        gr.Markdown("Upload an Excel file with 'URL', 'Company Name', and 'Tag' columns.")
 
-    gr.Markdown("## Tag News URLs")
-    url_input = gr.Textbox(label="News URL")
-    company_input = gr.Textbox(label="Company Name")
-    tag_input = gr.Radio(choices=["Yes", "No"], label="Is this news related to the company?")
-    tag_button = gr.Button("Save Tag")
-    tag_output = gr.Textbox(label="Tagging Status")
-    tag_button.click(tag_news, inputs=[url_input, company_input, tag_input], outputs=[tag_output])
+        upload_component = gr.File(label="Upload Excel File", file_types=[".xlsx"])
+        upload_button = gr.Button("Upload")
+        output_text = gr.Textbox(label="Upload Status")
+        upload_button.click(upload_excel, inputs=[upload_component], outputs=[output_text])
 
-    gr.Markdown("## Tagging Summary")
-    summary_button = gr.Button("Show Summary")
-    summary_output = gr.Textbox(label="Summary")
-    summary_button.click(show_summary, inputs=[], outputs=[summary_output])
+        gr.Markdown("## Tag News URLs")
+        url_input = gr.Textbox(label="News URL")
+        company_input = gr.Textbox(label="Company Name")
+        tag_input = gr.Radio(choices=["Yes", "No"], label="Is this news related to the company?")
+        tag_button = gr.Button("Save Tag")
+        tag_output = gr.Textbox(label="Tagging Status")
+        tag_button.click(tag_news, inputs=[url_input, company_input, tag_input], outputs=[tag_output])
 
-demo.launch(share=True)
+        gr.Markdown("## Tagging Summary")
+        summary_button = gr.Button("Show Summary")
+        summary_output = gr.Textbox(label="Summary")
+        summary_button.click(show_summary, inputs=[], outputs=[summary_output])
+
+    demo.launch(share=args.share, server_port=args.port)
+
+if __name__ == "__main__":
+    main()
