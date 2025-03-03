@@ -541,7 +541,7 @@ For a **technical support role**, AI prioritizes:
 - AI **automates interview scheduling** based on candidate & interviewer availability.
 - LLM-powered **chatbots conduct pre-screening interviews**.
 
-🔹 **Example:**  
+**Example:**  
 - AI asks technical questions like:
   - _"How do you debug an ECU that fails to communicate over CAN bus?"_
 - Scores candidate responses **based on predefined expert answers**.
