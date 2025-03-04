@@ -95,9 +95,10 @@ def main():
         
         with gr.Tab("Summary"):
             gr.Markdown("### **Tagging Summary**")
-            summary_button = gr.Button("Show Summary", variant="primary")
+            summary_button = gr.Button("Show Summary", variant="primary", visible=False)
             summary_output = gr.DataFrame()
             password_summary_input = gr.Textbox(label="Admin Password", type="password")
+            password_summary_input.change(fn=lambda password: gr.update(visible=True) if password == admin_password else gr.update(visible=False), inputs=[password_summary_input], outputs=[summary_button])
             summary_button.click(show_summary, inputs=[password_summary_input], outputs=[summary_output])
     
     app.launch(server_port=args.port)
