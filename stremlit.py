@@ -2,6 +2,7 @@ import argparse
 import gradio as gr
 import pandas as pd
 import os
+from tabulate import tabulate
 
 # Global variable to store tagging results
 output_file = "tagged_results.csv"
@@ -53,9 +54,9 @@ def show_summary():
     tag_counts = df['Tag'].value_counts().reset_index()
     tag_counts.columns = ['Tag', 'Count']
     
-    summary_table = tag_counts.to_markdown(index=False, tablefmt='grid')
+    summary_table = tabulate(tag_counts, headers='keys', tablefmt='grid')
     
-    return f"# **Tagging Summary**\n\n## **Total URLs:** {total}\n\n## **Tag Distribution:**\n```\n{summary_table}\n```"
+    return f"# **Tagging Summary**\n\n## **Total URLs:** {total}\n\n## **Tag Distribution:**\n\n{summary_table}"
 
 def main():
     parser = argparse.ArgumentParser(description="Run the Gradio News Tagging App")
@@ -93,7 +94,7 @@ def main():
             summary_output = gr.Markdown()
             summary_button.click(show_summary, inputs=[], outputs=[summary_output])
     
-    app.launch(share=args.share, server_port=args.port)
+    app.launch(share=True, server_port=args.port)
 
 if __name__ == "__main__":
     main()
