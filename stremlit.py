@@ -2,7 +2,6 @@ import argparse
 import gradio as gr
 import pandas as pd
 import os
-from tabulate import tabulate
 
 # Global variable to store tagging results
 output_file = "tagged_results.csv"
@@ -46,7 +45,7 @@ def tag_news(index, tag):
         return "**All records have been tagged.**", "", -1
 
 def show_summary():
-    """Displays a summary of Yes and No counts using tabulate."""
+    """Displays a summary of Yes and No counts using Gradio components."""
     if not os.path.exists(output_file):
         return "**No tagging data found.**"
     df = pd.read_csv(output_file)
@@ -54,9 +53,7 @@ def show_summary():
     yes_count = df[df['Tag'] == 'Yes'].shape[0]
     no_count = df[df['Tag'] == 'No'].shape[0]
     
-    summary_table = tabulate([["Yes", yes_count], ["No", no_count]], headers=["Tag", "Count"], tablefmt="fancy_grid")
-    
-    return f"# **Tagging Summary**\n\n**Total URLs:** {total}\n\n## **Tag Distribution:**\n\n```\n{summary_table}\n```"
+    return gr.DataFrame(pd.DataFrame({"Tag": ["Yes", "No"], "Count": [yes_count, no_count]}))
 
 def main():
     parser = argparse.ArgumentParser(description="Run the Gradio News Tagging App")
@@ -91,8 +88,8 @@ def main():
         
         with gr.Tab("Summary"):
             gr.Markdown("### **Tagging Summary**")
-            summary_button = gr.Button("Show Summary", variant="secondary")
-            summary_output = gr.Markdown()
+            summary_button = gr.Button("Show Summary", variant="primary")
+            summary_output = gr.DataFrame()
             summary_button.click(show_summary, inputs=[], outputs=[summary_output])
     
     app.launch(share=True, server_port=args.port)
