@@ -2,55 +2,79 @@ import argparse
 import gradio as gr
 import pandas as pd
 import os
-from fastapi import FastAPI, UploadFile, Form
-from starlette.responses import JSONResponse
-
-app = FastAPI()
 
 # Global variable to store tagging results
 output_file = "tagged_results.csv"
 admin_password = "securepassword"  # Change this to a secure password
 
-@app.post("/upload")
-async def upload_excel(file: UploadFile, password: str = Form(...)):
+def upload_excel(file, password):
     """Handles file upload and validates the format, protected by a password."""
     if password != admin_password:
-        return JSONResponse(content={"error": "Unauthorized: Incorrect password."}, status_code=403)
-    df = pd.read_excel(file.file)
+        return "Unauthorized: Incorrect password."
+    if file is None:
+        return "Please upload an Excel file."
+    df = pd.read_excel(file.name)
     if not {'URL', 'Company Name', 'Tag'}.issubset(df.columns):
-        return JSONResponse(content={"error": "The Excel file must contain 'URL', 'Company Name', and 'Tag' columns."}, status_code=400)
+        return "The Excel file must contain 'URL', 'Company Name', and 'Tag' columns."
     df.to_csv(output_file, index=False)
-    return {"message": "File uploaded and saved successfully."}
+    return "File uploaded and saved successfully."
 
-@app.post("/tag")
-async def tag_news(url: str = Form(...), company_name: str = Form(...), tag: str = Form(...)):
+def tag_news(url, company_name, tag):
     """Handles tagging of news items."""
     if not os.path.exists(output_file):
-        return JSONResponse(content={"error": "No uploaded data found. Please upload a file first."}, status_code=400)
+        return "No uploaded data found. Please upload a file first."
     df = pd.read_csv(output_file)
     new_entry = pd.DataFrame({'URL': [url], 'Company Name': [company_name], 'Tag': [tag]})
     df = pd.concat([df, new_entry], ignore_index=True)
     df.to_csv(output_file, index=False)
-    return {"message": f"Saved tag: {tag} for URL: {url}"}
+    return f"Saved tag: {tag} for URL: {url}"
 
-@app.get("/summary")
-async def show_summary():
+def show_summary():
     """Displays summary of tagging results."""
     if not os.path.exists(output_file):
-        return JSONResponse(content={"error": "No tagging data found."}, status_code=400)
+        return "No tagging data found."
     df = pd.read_csv(output_file)
     total = len(df)
     yes_count = len(df[df['Tag'] == 'Yes'])
     no_count = len(df[df['Tag'] == 'No'])
-    return {"Total URLs": total, "Related to Company (Yes)": yes_count, "Not Related to Company (No)": no_count}
+    return f"Total URLs: {total}\nRelated to Company (Yes): {yes_count}\nNot Related to Company (No): {no_count}"
 
 def main():
-    parser = argparse.ArgumentParser(description="Run the FastAPI News Tagging App")
+    parser = argparse.ArgumentParser(description="Run the Gradio News Tagging App")
     parser.add_argument("--port", type=int, default=7860, help="Port to run the app on (default: 7860)")
+    parser.add_argument("--share", action="store_true", help="Generate a public Gradio link")
     args = parser.parse_args()
+
+    with gr.Blocks() as demo:
+        gr.Markdown("# News Tagging Application")
+        
+        with gr.Row():
+            with gr.Column():
+                gr.Markdown("## Upload Excel File (Admin Only)")
+                password_input = gr.Textbox(label="Admin Password", type="password")
+                upload_component = gr.File(label="Upload Excel File", file_types=[".xlsx"])
+                upload_button = gr.Button("Upload")
+                upload_output = gr.Textbox(label="Upload Status")
+                upload_button.click(upload_excel, inputs=[upload_component, password_input], outputs=[upload_output])
+        
+        with gr.Row():
+            with gr.Column():
+                gr.Markdown("## Tag News URLs")
+                url_input = gr.Textbox(label="News URL")
+                company_input = gr.Textbox(label="Company Name")
+                tag_input = gr.Radio(choices=["Yes", "No"], label="Is this news related to the company?")
+                tag_button = gr.Button("Save Tag")
+                tag_output = gr.Textbox(label="Tagging Status")
+                tag_button.click(tag_news, inputs=[url_input, company_input, tag_input], outputs=[tag_output])
+        
+        with gr.Row():
+            with gr.Column():
+                gr.Markdown("## Tagging Summary")
+                summary_button = gr.Button("Show Summary")
+                summary_output = gr.Textbox(label="Summary")
+                summary_button.click(show_summary, inputs=[], outputs=[summary_output])
     
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=args.port)
+    demo.launch(share=args.share, server_port=args.port)
 
 if __name__ == "__main__":
     main()
