@@ -31,8 +31,8 @@ def upload_excel(file, password):
 def tag_news(index, tag):
     """Handles tagging of news items, updates the correct row in the dataset."""
     global news_data
-    if not os.path.exists(output_file) or not news_data:
-        return "**Error:** No uploaded data found. Please upload a file first.", "", "", -1
+    if not os.path.exists(output_file) or not news_data or index == -1:
+        return "**All records have been tagged.**", "", -1
     
     # Update the tag for the corresponding row
     if 0 <= index < len(news_data):
@@ -46,17 +46,15 @@ def tag_news(index, tag):
         return "**All records have been tagged.**", "", -1
 
 def show_summary():
-    """Displays summary of tagging results in a formatted table with additional analytics."""
+    """Displays a simple summary of Yes and No counts."""
     if not os.path.exists(output_file):
         return "**No tagging data found.**"
     df = pd.read_csv(output_file)
     total = len(df)
-    tag_counts = df['Tag'].value_counts().reset_index()
-    tag_counts.columns = ['Tag', 'Count']
+    yes_count = df[df['Tag'] == 'Yes'].shape[0]
+    no_count = df[df['Tag'] == 'No'].shape[0]
     
-    summary_table = tabulate(tag_counts, headers='keys', tablefmt='grid')
-    
-    return f"# **Tagging Summary**\n\n## **Total URLs:** {total}\n\n## **Tag Distribution:**\n\n{summary_table}"
+    return f"# **Tagging Summary**\n\n**Total URLs:** {total}\n\n| Tag | Count |\n|------|--------|\n| Yes  | {yes_count} |\n| No   | {no_count} |"
 
 def main():
     parser = argparse.ArgumentParser(description="Run the Gradio News Tagging App")
@@ -84,7 +82,8 @@ def main():
             company_display = gr.Textbox(label="Company Name", interactive=False)
             index_input = gr.Number(label="Index", value=0, interactive=False)
             tag_input = gr.Radio(choices=["Yes", "No"], label="Is this news related to the company?")
-            tag_button = gr.Button("Save Tag", variant="primary")
+            tag_button = gr.Button("Save Tag", variant="primary", interactive=False)
+            tag_input.change(fn=lambda tag: gr.update(interactive=True) if tag else gr.update(interactive=False), inputs=[tag_input], outputs=[tag_button])
             tag_button.click(tag_news, inputs=[index_input, tag_input], outputs=[url_display, company_display, index_input])
             upload_button.click(fn=lambda: (f"{news_data[0]['URL']}", news_data[0]['Company Name'], 0) if news_data else ("", "", -1), inputs=[], outputs=[url_display, company_display, index_input])
         
