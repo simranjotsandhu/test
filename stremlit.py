@@ -80,14 +80,14 @@ def main():
         
         with gr.Tab("Tag News"):
             gr.Markdown("### **Tag News URLs**")
-            url_display = gr.Textbox(label="News URL", interactive=False)
+            url_display = gr.Markdown()
             company_display = gr.Textbox(label="Company Name", interactive=False)
             news_preview = gr.HTML()
             index_input = gr.Number(label="Index", value=0, interactive=False)
             tag_input = gr.Radio(choices=["Yes", "No"], label="Is this news related to the company?")
             tag_button = gr.Button("Save Tag", variant="primary", interactive=False)
             tag_input.change(fn=lambda tag: gr.update(interactive=True) if tag else gr.update(interactive=False), inputs=[tag_input], outputs=[tag_button])
-            tag_button.click(tag_news, inputs=[index_input, tag_input], outputs=[url_display, company_display, news_preview, index_input])
+            tag_button.click(tag_news, inputs=[index_input, tag_input], outputs=[gr.update(value=lambda url: f'[Click here to view the article]({url})' if url.startswith('http') else url, interactive=False), company_display, news_preview, index_input])
             upload_button.click(fn=lambda: (f"{news_data[0]['URL']}", news_data[0]['Company Name'], f'<iframe src="{news_data[0]['URL']}" width="100%" height="500px"></iframe>', 0) if news_data else ("", "", "", -1), inputs=[], outputs=[url_display, company_display, news_preview, index_input])
         
         with gr.Tab("Summary"):
