@@ -3,7 +3,8 @@ import gradio as gr
 import pandas as pd
 import os
 import requests
-from newspaper import Article
+from bs4 import BeautifulSoup
+from readability import Document
 
 # Global variable to store tagging results
 output_file = "tagged_results.csv"
@@ -30,13 +31,18 @@ def upload_excel(file, password):
         return "**File uploaded but contains no valid records.**", "", "", -1
 
 def fetch_news_content(url):
-    """Fetches the news content from the given URL using newspaper3k."""
+    """Fetches the news content from the given URL using readability-lxml."""
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
     try:
-        article = Article(url)
-        article.download()
-        article.parse()
-        summary = article.text.split('\n')[:5]  # Limit to the first few sentences
-        return '\n'.join(summary) if summary else "**Could not extract content. Visit the URL to read more.**"
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        doc = Document(response.text)
+        soup = BeautifulSoup(doc.summary(), 'html.parser')
+        paragraphs = soup.find_all('p')
+        news_text = '\n'.join([para.get_text() for para in paragraphs[:5]])  # Get first 5 paragraphs
+        return news_text if news_text.strip() else "**Could not extract content. Visit the URL to read more.**"
     except Exception as e:
         return f"**Failed to load preview: {str(e)}**\nPlease visit the URL manually."
 
