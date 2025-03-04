@@ -62,10 +62,10 @@ def show_summary():
 def main():
     parser = argparse.ArgumentParser(description="Run the Gradio News Tagging App")
     parser.add_argument("--port", type=int, default=7860, help="Port to run the app on (default: 7860)")
-    parser.add_argument("--share", action="store_true", help="Generate a public Gradio link")
+    
     args = parser.parse_args()
     
-    with gr.Blocks(title="News Tagging App", , theme=gr.themes.Ocean()) as app:
+    with gr.Blocks(title="News Tagging App", theme=gr.themes.Ocean()) as app:
         gr.Markdown("""# News Tagging App\n""")
         
         with gr.Tab("Upload File"):
@@ -97,7 +97,7 @@ def main():
             summary_output = gr.DataFrame()
             summary_button.click(show_summary, inputs=[], outputs=[summary_output])
     
-    app.launch(share=True, server_port=args.port, favicon_path="image.png")
+    app.launch(server_port=args.port)
 
 if __name__ == "__main__":
     main()
