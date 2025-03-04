@@ -46,7 +46,7 @@ def tag_news(index, tag):
         return "**All records have been tagged.**", "", -1
 
 def show_summary():
-    """Displays a simple summary of Yes and No counts."""
+    """Displays a summary of Yes and No counts using tabulate."""
     if not os.path.exists(output_file):
         return "**No tagging data found.**"
     df = pd.read_csv(output_file)
@@ -54,7 +54,9 @@ def show_summary():
     yes_count = df[df['Tag'] == 'Yes'].shape[0]
     no_count = df[df['Tag'] == 'No'].shape[0]
     
-    return f"# **Tagging Summary**\n\n**Total URLs:** {total}\n\n| Tag | Count |\n|------|--------|\n| Yes  | {yes_count} |\n| No   | {no_count} |"
+    summary_table = tabulate([["Yes", yes_count], ["No", no_count]], headers=["Tag", "Count"], tablefmt="fancy_grid")
+    
+    return f"# **Tagging Summary**\n\n**Total URLs:** {total}\n\n## **Tag Distribution:**\n\n```\n{summary_table}\n```"
 
 def main():
     parser = argparse.ArgumentParser(description="Run the Gradio News Tagging App")
