@@ -23,7 +23,7 @@ def upload_excel(file, password):
     df.to_csv(output_file, index=False)
     news_data = df.to_dict(orient='records')  # Store the dataset as a list of dictionaries
     if news_data:
-        return "**File uploaded and saved successfully!**", f"[Click here to view]({news_data[0]['URL']})", news_data[0]['Company Name'], 0
+        return "**File uploaded and saved successfully!**", f"{news_data[0]['URL']}", news_data[0]['Company Name'], 0
     else:
         return "**File uploaded but contains no valid records.**", "", "", -1
 
@@ -40,22 +40,21 @@ def tag_news(index, tag):
     
     # Move to the next item
     if index + 1 < len(news_data):
-        return f"[Click here to view]({news_data[index + 1]['URL']})", news_data[index + 1]['Company Name'], index + 1
+        return f"{news_data[index + 1]['URL']}", news_data[index + 1]['Company Name'], index + 1
     else:
         return "**All records have been tagged.**", "", -1
 
 def show_summary():
-    """Displays summary of tagging results in a tabular format with additional analytics."""
+    """Displays summary of tagging results in a formatted table with additional analytics."""
     if not os.path.exists(output_file):
         return "**No tagging data found.**"
     df = pd.read_csv(output_file)
     total = len(df)
-    tag_counts = df['Tag'].value_counts().reset_index()
-    tag_counts.columns = ['Tag', 'Count']
+    tag_counts = df.groupby(['Tag', 'Company Name']).size().reset_index(name='Count')
     
     summary_table = tag_counts.to_markdown(index=False)
     
-    return f"# **Tagging Summary**\n\n## **Total URLs:** {total}\n\n## **Tag Distribution:**\n{summary_table}"
+    return f"# **Tagging Summary**\n\n## **Total URLs:** {total}\n\n## **Tag Distribution by Company:**\n```\n{summary_table}\n```"
 
 def main():
     parser = argparse.ArgumentParser(description="Run the Gradio News Tagging App")
@@ -85,7 +84,7 @@ def main():
             tag_input = gr.Radio(choices=["Yes", "No"], label="Is this news related to the company?")
             tag_button = gr.Button("Save Tag", variant="primary")
             tag_button.click(tag_news, inputs=[index_input, tag_input], outputs=[url_display, company_display, index_input])
-            upload_button.click(fn=lambda: (f"[Click here to view]({news_data[0]['URL']})", news_data[0]['Company Name'], 0) if news_data else ("", "", -1), inputs=[], outputs=[url_display, company_display, index_input])
+            upload_button.click(fn=lambda: (f"{news_data[0]['URL']}", news_data[0]['Company Name'], 0) if news_data else ("", "", -1), inputs=[], outputs=[url_display, company_display, index_input])
         
         with gr.Tab("Summary"):
             gr.Markdown("### **Tagging Summary**")
