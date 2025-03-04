@@ -65,8 +65,9 @@ def main():
             gr.Markdown("## Upload Excel File (Admin Only)")
             password_input = gr.Textbox(label="Admin Password", type="password")
             upload_component = gr.File(label="Upload Excel File", file_types=[".xlsx"])
-            upload_button = gr.Button("Upload")
-            upload_output = gr.Textbox(label="Upload Status")
+            with gr.Row():
+                upload_button = gr.Button("Upload")
+                upload_output = gr.Textbox(label="Upload Status", interactive=False)
             first_url = gr.Textbox(label="First News URL", interactive=False)
             first_company = gr.Textbox(label="First Company Name", interactive=False)
             first_index = gr.Number(label="Start Index", interactive=False)
