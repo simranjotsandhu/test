@@ -86,9 +86,13 @@ def main():
             news_preview = gr.HTML()
             index_input = gr.Number(label="Index", value=0, interactive=False)
             tag_input = gr.Radio(choices=["Yes", "No"], label="Is this news related to the company?")
-            tag_button = gr.Button("Save Tag", variant="primary", interactive=False)  # Disable after all tags are done
+            tag_button = gr.Button("Save Tag", variant="primary", interactive=False)  # Renamed back to "Save Tag"
             tag_input.change(fn=lambda tag: gr.update(interactive=True) if tag else gr.update(interactive=False), inputs=[tag_input], outputs=[tag_button])
-            tag_button.click(tag_news, inputs=[index_input, tag_input], outputs=[url_display, company_display, news_preview, index_input]).then(fn=lambda idx: gr.update(interactive=False) if idx == -1 else gr.update(interactive=True), inputs=[index_input], outputs=[tag_button]).then(fn=lambda idx: gr.update(interactive=False) if idx == -1 else gr.update(interactive=True), inputs=[index_input], outputs=[tag_button]).then(fn=lambda idx: gr.update(interactive=False) if idx == -1 else gr.update(interactive=True), inputs=[index_input], outputs=[tag_button])
+            tag_button.click(tag_news, inputs=[index_input, tag_input], outputs=[url_display, company_display, news_preview, index_input]).then(
+                fn=lambda idx: gr.update(interactive=False) if idx == -1 else gr.update(interactive=True), 
+                inputs=[index_input], 
+                outputs=[tag_button]
+            )
             upload_button.click(fn=lambda: (f"{news_data[0]['URL']}", news_data[0]['Company Name'], f'<iframe src="{news_data[0]['URL']}" width="100%" height="500px"></iframe>', 0) if news_data else ("", "", "", -1), inputs=[], outputs=[url_display, company_display, news_preview, index_input])
         
         with gr.Tab("Summary"):
