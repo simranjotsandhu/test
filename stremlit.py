@@ -23,9 +23,9 @@ def upload_excel(file, password):
     df.to_csv(output_file, index=False)
     news_data = df.to_dict(orient='records')  # Store the dataset as a list of dictionaries
     if news_data:
-        return "✅ **File uploaded and saved successfully!**", f"[Click here to view]({news_data[0]['URL']})", news_data[0]['Company Name'], 0
+        return "**File uploaded and saved successfully!**", f"[Click here to view]({news_data[0]['URL']})", news_data[0]['Company Name'], 0
     else:
-        return "⚠️ **File uploaded but contains no valid records.**", "", "", -1
+        return "**File uploaded but contains no valid records.**", "", "", -1
 
 def tag_news(index, tag):
     """Handles tagging of news items, updates the correct row in the dataset."""
@@ -45,14 +45,17 @@ def tag_news(index, tag):
         return "**All records have been tagged.**", "", "", -1
 
 def show_summary():
-    """Displays summary of tagging results."""
+    """Displays summary of tagging results in a tabular format with additional analytics."""
     if not os.path.exists(output_file):
         return "**No tagging data found.**"
     df = pd.read_csv(output_file)
     total = len(df)
-    yes_count = len(df[df['Tag'] == 'Yes'])
-    no_count = len(df[df['Tag'] == 'No'])
-    return f"# **Tagging Summary**\n## **Total URLs:** {total}\n### ✅ **Related to Company (Yes):** {yes_count}\n### ❌ **Not Related to Company (No):** {no_count}"
+    tag_counts = df['Tag'].value_counts().reset_index()
+    tag_counts.columns = ['Tag', 'Count']
+    
+    summary_table = tag_counts.to_markdown(index=False)
+    
+    return f"# **Tagging Summary**\n\n## **Total URLs:** {total}\n\n## **Tag Distribution:**\n{summary_table}"
 
 def main():
     parser = argparse.ArgumentParser(description="Run the Gradio News Tagging App")
