@@ -5,7 +5,7 @@ import os
 
 # Global variable to store tagging results
 output_file = "tagged_results.csv"
-admin_password = "securepassword"  # Change this to a secure password
+admin_password = "x"  # Change this to a secure password
 
 # Load the dataset globally to maintain state
 news_data = []
