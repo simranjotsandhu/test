@@ -14,24 +14,24 @@ def upload_excel(file, password):
     """Handles file upload and validates the format, protected by a password."""
     global news_data
     if password != admin_password:
-        return "Unauthorized: Incorrect password.", "", "", -1
+        return "**Error:** Unauthorized - Incorrect password.", "", "", -1
     if file is None:
-        return "Please upload an Excel file.", "", "", -1
+        return "**Error:** Please upload an Excel file.", "", "", -1
     df = pd.read_excel(file.name)
     if not {'URL', 'Company Name', 'Tag'}.issubset(df.columns):
-        return "The Excel file must contain 'URL', 'Company Name', and 'Tag' columns.", "", "", -1
+        return "**Error:** The Excel file must contain 'URL', 'Company Name', and 'Tag' columns.", "", "", -1
     df.to_csv(output_file, index=False)
     news_data = df.to_dict(orient='records')  # Store the dataset as a list of dictionaries
     if news_data:
-        return "File uploaded and saved successfully!", news_data[0]['URL'], news_data[0]['Company Name'], 0
+        return "✅ **File uploaded and saved successfully!**", news_data[0]['URL'], news_data[0]['Company Name'], 0
     else:
-        return "File uploaded but contains no valid records.", "", "", -1
+        return "⚠️ **File uploaded but contains no valid records.**", "", "", -1
 
 def tag_news(index, tag):
     """Handles tagging of news items, updates the correct row in the dataset."""
     global news_data
     if not os.path.exists(output_file) or not news_data:
-        return "No uploaded data found. Please upload a file first.", "", "", -1
+        return "**Error:** No uploaded data found. Please upload a file first.", "", "", -1
     
     # Update the tag for the corresponding row
     if 0 <= index < len(news_data):
@@ -40,19 +40,19 @@ def tag_news(index, tag):
     
     # Move to the next item
     if index + 1 < len(news_data):
-        return news_data[index + 1]['URL'], news_data[index + 1]['Company Name'], index + 1
+        return f"[Click here to view]({news_data[index + 1]['URL']})", news_data[index + 1]['Company Name'], index + 1
     else:
-        return "No more records to tag!", "", "", -1
+        return "**All records have been tagged.**", "", "", -1
 
 def show_summary():
     """Displays summary of tagging results."""
     if not os.path.exists(output_file):
-        return "No tagging data found."
+        return "**No tagging data found.**"
     df = pd.read_csv(output_file)
     total = len(df)
     yes_count = len(df[df['Tag'] == 'Yes'])
     no_count = len(df[df['Tag'] == 'No'])
-    return f"Tagging Summary\nTotal URLs: {total}\nRelated to Company (Yes): {yes_count}\nNot Related to Company (No): {no_count}"
+    return f"## Tagging Summary\n- **Total URLs:** {total}\n- ✅ **Related to Company (Yes):** {yes_count}\n- ❌ **Not Related to Company (No):** {no_count}"
 
 def main():
     parser = argparse.ArgumentParser(description="Run the Gradio News Tagging App")
@@ -61,22 +61,22 @@ def main():
     args = parser.parse_args()
     
     with gr.Blocks(theme=gr.themes.Ocean()) as app:
-        gr.Markdown("""# News Tagging Application\nUpload, Tag, and Analyze News Data Easily!""")
+        gr.Markdown("""# News Tagging Application\n### Upload, Tag, and Analyze News Data""")
         
         with gr.Tab("Upload File"):
-            gr.Markdown("### Upload an Excel File (Admin Only)")
+            gr.Markdown("### **Upload an Excel File (Admin Only)**")
             password_input = gr.Textbox(label="Admin Password", type="password")
             upload_component = gr.File(label="Upload Excel File", file_types=[".xlsx"])
             upload_button = gr.Button("Upload", variant="primary")
-            upload_output = gr.Textbox(label="Status", interactive=False)
+            upload_output = gr.Markdown()
             first_url = gr.Textbox(label="First News URL", interactive=False)
             first_company = gr.Textbox(label="First Company Name", interactive=False)
             first_index = gr.Number(label="Start Index", interactive=False)
             upload_button.click(upload_excel, inputs=[upload_component, password_input], outputs=[upload_output, first_url, first_company, first_index])
         
         with gr.Tab("Tag News"):
-            gr.Markdown("### Tag News URLs")
-            url_display = gr.Markdown()  # Changed to Markdown to support clickable link
+            gr.Markdown("### **Tag News URLs**")
+            url_display = gr.Markdown()
             company_display = gr.Textbox(label="Company Name", interactive=False)
             index_input = gr.Number(label="Index", value=0, interactive=False)
             tag_input = gr.Radio(choices=["Yes", "No"], label="Is this news related to the company?")
@@ -85,7 +85,7 @@ def main():
             upload_button.click(fn=lambda: (f"[Click here to view]({news_data[0]['URL']})", news_data[0]['Company Name'], 0) if news_data else ("", "", -1), inputs=[], outputs=[url_display, company_display, index_input])
         
         with gr.Tab("Summary"):
-            gr.Markdown("### Tagging Summary")
+            gr.Markdown("### **Tagging Summary**")
             summary_button = gr.Button("Show Summary", variant="secondary")
             summary_output = gr.Markdown()
             summary_button.click(show_summary, inputs=[], outputs=[summary_output])
