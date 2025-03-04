@@ -14,15 +14,18 @@ def upload_excel(file, password):
     """Handles file upload and validates the format, protected by a password."""
     global news_data
     if password != admin_password:
-        return "Unauthorized: Incorrect password."
+        return "Unauthorized: Incorrect password.", "", "", -1
     if file is None:
-        return "Please upload an Excel file."
+        return "Please upload an Excel file.", "", "", -1
     df = pd.read_excel(file.name)
     if not {'URL', 'Company Name', 'Tag'}.issubset(df.columns):
-        return "The Excel file must contain 'URL', 'Company Name', and 'Tag' columns."
+        return "The Excel file must contain 'URL', 'Company Name', and 'Tag' columns.", "", "", -1
     df.to_csv(output_file, index=False)
     news_data = df.to_dict(orient='records')  # Store the dataset as a list of dictionaries
-    return "File uploaded and saved successfully.", news_data[0]['URL'] if news_data else "", news_data[0]['Company Name'] if news_data else "", 0 if news_data else -1
+    if news_data:
+        return "File uploaded and saved successfully.", news_data[0]['URL'], news_data[0]['Company Name'], 0
+    else:
+        return "File uploaded but contains no valid records.", "", "", -1
 
 def tag_news(index, tag):
     """Handles tagging of news items, updates the correct row in the dataset."""
@@ -57,28 +60,35 @@ def main():
     parser.add_argument("--share", action="store_true", help="Generate a public Gradio link")
     args = parser.parse_args()
     
-    upload_interface = gr.Interface(
-        fn=upload_excel,
-        inputs=[gr.File(label="Upload Excel File", file_types=[".xlsx"]), gr.Textbox(label="Admin Password", type="password")],
-        outputs=[gr.Textbox(label="Upload Status"), gr.Textbox(label="First News URL"), gr.Textbox(label="First Company Name"), gr.Number(label="Start Index")],
-        title="Upload Excel File"
-    )
+    with gr.Blocks() as app:
+        with gr.Tab("Upload File"):
+            gr.Markdown("## Upload Excel File (Admin Only)")
+            password_input = gr.Textbox(label="Admin Password", type="password")
+            upload_component = gr.File(label="Upload Excel File", file_types=[".xlsx"])
+            upload_button = gr.Button("Upload")
+            upload_output = gr.Textbox(label="Upload Status")
+            first_url = gr.Textbox(label="First News URL", interactive=False)
+            first_company = gr.Textbox(label="First Company Name", interactive=False)
+            first_index = gr.Number(label="Start Index", interactive=False)
+            upload_button.click(upload_excel, inputs=[upload_component, password_input], outputs=[upload_output, first_url, first_company, first_index])
+        
+        with gr.Tab("Tag News"):
+            gr.Markdown("## Tag News URLs")
+            url_display = gr.Textbox(label="News URL", interactive=False)
+            company_display = gr.Textbox(label="Company Name", interactive=False)
+            index_input = gr.Number(label="Index", value=0, interactive=False)
+            tag_input = gr.Radio(choices=["Yes", "No"], label="Is this news related to the company?")
+            tag_button = gr.Button("Save Tag")
+            tag_button.click(tag_news, inputs=[index_input, tag_input], outputs=[url_display, company_display, index_input])
+            upload_button.click(fn=lambda: (news_data[0]['URL'], news_data[0]['Company Name'], 0) if news_data else ("", "", -1), inputs=[], outputs=[url_display, company_display, index_input])
+        
+        with gr.Tab("Summary"):
+            gr.Markdown("## Tagging Summary")
+            summary_button = gr.Button("Show Summary")
+            summary_output = gr.Textbox(label="Summary")
+            summary_button.click(show_summary, inputs=[], outputs=[summary_output])
     
-    tag_interface = gr.Interface(
-        fn=tag_news,
-        inputs=[gr.Number(label="Index", value=0, interactive=False), gr.Radio(choices=["Yes", "No"], label="Is this news related to the company?")],
-        outputs=[gr.Textbox(label="Next News URL"), gr.Textbox(label="Company Name"), gr.Number(label="Next Index")],
-        title="Tag News URLs"
-    )
-    
-    summary_interface = gr.Interface(
-        fn=show_summary,
-        inputs=[],
-        outputs=gr.Textbox(label="Summary"),
-        title="Tagging Summary"
-    )
-    
-    gr.TabbedInterface([upload_interface, tag_interface, summary_interface], ["Upload File", "Tag News", "Summary"]).launch(share=args.share, server_port=args.port)
+    app.launch(share=args.share, server_port=args.port)
 
 if __name__ == "__main__":
     main()
