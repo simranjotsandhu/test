@@ -2,6 +2,8 @@ import argparse
 import gradio as gr
 import pandas as pd
 import os
+import requests
+from bs4 import BeautifulSoup
 
 # Global variable to store tagging results
 output_file = "tagged_results.csv"
@@ -27,11 +29,23 @@ def upload_excel(file, password):
     else:
         return "**File uploaded but contains no valid records.**", "", "", -1
 
+def fetch_news_content(url):
+    """Fetches the news content from the given URL."""
+    try:
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+        paragraphs = soup.find_all('p')
+        news_text = '\n'.join([para.get_text() for para in paragraphs[:5]])
+        return news_text if news_text else "**Could not extract content. Visit the URL to read more.**"
+    except:
+        return "**Failed to load preview. Please visit the URL.**"
+
 def tag_news(index, tag):
     """Handles tagging of news items, updates the correct row in the dataset."""
     global news_data
     if not os.path.exists(output_file) or not news_data or index == -1:
-        return "**All records have been tagged.**", "", -1
+        return "**All records have been tagged.**", "", "", -1
     
     # Update the tag for the corresponding row
     if 0 <= index < len(news_data):
@@ -40,9 +54,11 @@ def tag_news(index, tag):
     
     # Move to the next item
     if index + 1 < len(news_data):
-        return f"{news_data[index + 1]['URL']}", news_data[index + 1]['Company Name'], index + 1
+        news_url = news_data[index + 1]['URL']
+        preview_text = fetch_news_content(news_url)
+        return news_url, news_data[index + 1]['Company Name'], preview_text, index + 1
     else:
-        return "**All records have been tagged.**", "", -1
+        return "**All records have been tagged.**", "", "", -1
 
 def show_summary():
     """Displays a summary of Yes and No counts using Gradio components."""
@@ -79,12 +95,13 @@ def main():
             gr.Markdown("### **Tag News URLs**")
             url_display = gr.Markdown()
             company_display = gr.Textbox(label="Company Name", interactive=False)
+            news_preview = gr.Textbox(label="News Preview", interactive=False)
             index_input = gr.Number(label="Index", value=0, interactive=False)
             tag_input = gr.Radio(choices=["Yes", "No"], label="Is this news related to the company?")
             tag_button = gr.Button("Save Tag", variant="primary", interactive=False)
             tag_input.change(fn=lambda tag: gr.update(interactive=True) if tag else gr.update(interactive=False), inputs=[tag_input], outputs=[tag_button])
-            tag_button.click(tag_news, inputs=[index_input, tag_input], outputs=[url_display, company_display, index_input])
-            upload_button.click(fn=lambda: (f"{news_data[0]['URL']}", news_data[0]['Company Name'], 0) if news_data else ("", "", -1), inputs=[], outputs=[url_display, company_display, index_input])
+            tag_button.click(tag_news, inputs=[index_input, tag_input], outputs=[url_display, company_display, news_preview, index_input])
+            upload_button.click(fn=lambda: (f"{news_data[0]['URL']}", news_data[0]['Company Name'], fetch_news_content(news_data[0]['URL']), 0) if news_data else ("", "", "", -1), inputs=[], outputs=[url_display, company_display, news_preview, index_input])
         
         with gr.Tab("Summary"):
             gr.Markdown("### **Tagging Summary**")
