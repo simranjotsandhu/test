@@ -48,8 +48,10 @@ def tag_news(index, tag):
     else:
         return "**All records have been tagged.**", "", "", "", -1
 
-def show_summary():
+def show_summary(password):
     """Displays a summary of Yes and No counts using Gradio components."""
+    if password != admin_password:
+        return "**Error:** Unauthorized - Incorrect password.**"
     if not os.path.exists(output_file):
         return "**No tagging data found.**"
     df = pd.read_csv(output_file)
@@ -95,7 +97,8 @@ def main():
             gr.Markdown("### **Tagging Summary**")
             summary_button = gr.Button("Show Summary", variant="primary")
             summary_output = gr.DataFrame()
-            summary_button.click(show_summary, inputs=[], outputs=[summary_output])
+            password_summary_input = gr.Textbox(label="Admin Password", type="password")
+            summary_button.click(show_summary, inputs=[password_summary_input], outputs=[summary_output])
     
     app.launch(server_port=args.port)
 
