@@ -42,7 +42,7 @@ def tag_news(index, tag):
     if index + 1 < len(news_data):
         return f"[Click here to view]({news_data[index + 1]['URL']})", news_data[index + 1]['Company Name'], index + 1
     else:
-        return "**All records have been tagged.**", "", "", -1
+        return "**All records have been tagged.**", "", -1
 
 def show_summary():
     """Displays summary of tagging results in a tabular format with additional analytics."""
