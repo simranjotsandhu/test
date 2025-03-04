@@ -43,7 +43,7 @@ def tag_news(index, tag):
     if index + 1 < len(news_data):
         news_url = news_data[index + 1]['URL']
         embed_code = f'<iframe src="{news_url}" width="100%" height="500px"></iframe>'
-        clickable_url = f'[Click here to view the article]({news_url})' if news_url.startswith('http') else news_url
+        clickable_url = news_url
         return clickable_url, news_data[index + 1]['Company Name'], embed_code, index + 1
     else:
         return "**All records have been tagged.**", "", "", "", -1
@@ -80,7 +80,7 @@ def main():
             upload_button.click(upload_excel, inputs=[upload_component, password_input], outputs=[upload_output, first_url, first_company, first_index])
         
         with gr.Tab("Tag News"):
-            gr.Markdown("### **Tag News URLs**")
+            gr.Markdown("### **Tag News URL**")
             url_display = gr.Markdown()
             company_display = gr.Textbox(label="Company Name", interactive=False)
             news_preview = gr.HTML()
