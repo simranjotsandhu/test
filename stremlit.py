@@ -94,7 +94,7 @@ def main():
             upload_button.click(fn=lambda: (f"{news_data[0]['URL']}", news_data[0]['Company Name'], f'<iframe src="{news_data[0]['URL']}" width="100%" height="500px"></iframe>', 0) if news_data else ("", "", "", -1), inputs=[], outputs=[url_display, company_display, news_preview, index_input])
         
         with gr.Tab("Summary"):
-            gr.Markdown("### **Tagging Summary**")
+            gr.Markdown("### **Tagging Summary (Admin Only)**")
             summary_button = gr.Button("Show Summary", variant="primary", visible=False)
             summary_output = gr.DataFrame(pd.DataFrame(columns=["Tag", "Count"]), visible=False)
             password_summary_input = gr.Textbox(label="Admin Password", type="password")
