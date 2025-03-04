@@ -50,11 +50,12 @@ def show_summary():
         return "**No tagging data found.**"
     df = pd.read_csv(output_file)
     total = len(df)
-    tag_counts = df.groupby(['Tag', 'Company Name']).size().reset_index(name='Count')
+    tag_counts = df['Tag'].value_counts().reset_index()
+    tag_counts.columns = ['Tag', 'Count']
     
-    summary_table = tag_counts.to_markdown(index=False)
+    summary_table = tag_counts.to_markdown(index=False, tablefmt='grid')
     
-    return f"# **Tagging Summary**\n\n## **Total URLs:** {total}\n\n## **Tag Distribution by Company:**\n```\n{summary_table}\n```"
+    return f"# **Tagging Summary**\n\n## **Total URLs:** {total}\n\n## **Tag Distribution:**\n```\n{summary_table}\n```"
 
 def main():
     parser = argparse.ArgumentParser(description="Run the Gradio News Tagging App")
