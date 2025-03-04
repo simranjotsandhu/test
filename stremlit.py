@@ -42,7 +42,7 @@ def tag_news(index, tag):
     # Move to the next item
     if index + 1 < len(news_data):
         news_url = news_data[index + 1]['URL']
-        embed_code = f'[Click here to view the article]({news_url})'
+        embed_code = news_url
         return news_url, news_data[index + 1]['Company Name'], embed_code, index + 1
     else:
         return "**All records have been tagged.**", "", "", "", -1
@@ -80,7 +80,7 @@ def main():
         
         with gr.Tab("Tag News"):
             gr.Markdown("### **Tag News URLs**")
-            url_display = gr.Markdown()
+            url_display = gr.Textbox(label="News URL", interactive=False)
             company_display = gr.Textbox(label="Company Name", interactive=False)
             news_preview = gr.HTML()
             index_input = gr.Number(label="Index", value=0, interactive=False)
