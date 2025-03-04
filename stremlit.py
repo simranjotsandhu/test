@@ -42,7 +42,7 @@ def tag_news(index, tag):
     # Move to the next item
     if index + 1 < len(news_data):
         news_url = news_data[index + 1]['URL']
-        embed_code = f'<iframe src="{news_url}" width="100%" height="500px"></iframe>'
+        embed_code = f'[Click here to view the article]({news_url})'
         return news_url, news_data[index + 1]['Company Name'], embed_code, index + 1
     else:
         return "**All records have been tagged.**", "", "", "", -1
