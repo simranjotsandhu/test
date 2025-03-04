@@ -65,7 +65,7 @@ def main():
     parser.add_argument("--share", action="store_true", help="Generate a public Gradio link")
     args = parser.parse_args()
     
-    with gr.Blocks(title="News Tagging App", favicon_path="image.png", theme=gr.themes.Ocean()) as app:
+    with gr.Blocks(title="News Tagging App", , theme=gr.themes.Ocean()) as app:
         gr.Markdown("""# News Tagging App\n""")
         
         with gr.Tab("Upload File"):
@@ -97,7 +97,7 @@ def main():
             summary_output = gr.DataFrame()
             summary_button.click(show_summary, inputs=[], outputs=[summary_output])
     
-    app.launch(share=True, server_port=args.port)
+    app.launch(share=True, server_port=args.port, favicon_path="image.png")
 
 if __name__ == "__main__":
     main()
