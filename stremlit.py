@@ -76,13 +76,13 @@ def main():
         
         with gr.Tab("Tag News"):
             gr.Markdown("### Tag News URLs")
-            url_display = gr.Textbox(label="News URL", interactive=False)
+            url_display = gr.Markdown()  # Changed to Markdown to support clickable link
             company_display = gr.Textbox(label="Company Name", interactive=False)
             index_input = gr.Number(label="Index", value=0, interactive=False)
             tag_input = gr.Radio(choices=["Yes", "No"], label="Is this news related to the company?")
             tag_button = gr.Button("Save Tag", variant="primary")
             tag_button.click(tag_news, inputs=[index_input, tag_input], outputs=[url_display, company_display, index_input])
-            upload_button.click(fn=lambda: (news_data[0]['URL'], news_data[0]['Company Name'], 0) if news_data else ("", "", -1), inputs=[], outputs=[url_display, company_display, index_input])
+            upload_button.click(fn=lambda: (f"[Click here to view]({news_data[0]['URL']})", news_data[0]['Company Name'], 0) if news_data else ("", "", -1), inputs=[], outputs=[url_display, company_display, index_input])
         
         with gr.Tab("Summary"):
             gr.Markdown("### Tagging Summary")
