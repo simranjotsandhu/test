@@ -11,7 +11,7 @@ admin_password = "x"  # Change this to a secure password
 # Load the dataset globally to maintain state
 news_data = []
 
-def upload_excel(file, password):
+def upload_excel(file, password, num_sets, num_users_per_set):
     """Handles file upload and validates the format, protected by a password."""
     global news_data
     if password != admin_password:
@@ -19,6 +19,24 @@ def upload_excel(file, password):
     if file is None:
         return "**Error:** Please upload an Excel file.", "", "", -1
     df = pd.read_excel(file.name)
+    num_records = len(df)
+    if num_sets > num_records:
+        return "**Error:** Number of sets exceeds available records.", "", "", -1
+    set_size = num_records // num_sets
+    user_passwords = {}
+    
+    for i in range(num_sets):
+        start_idx = i * set_size
+        end_idx = (i + 1) * set_size if i != num_sets - 1 else num_records
+        subset = df.iloc[start_idx:end_idx]
+        subset_filename = f"tagging_set_{i+1}.csv"
+        subset.to_csv(subset_filename, index=False)
+        set_password = f"set_pass_{i+1}"  # Generate passwords
+        user_passwords[set_password] = {"file": subset_filename, "users": num_users_per_set, "completed": 0}
+    
+    with open("user_passwords.json", "w") as f:
+        json.dump(user_passwords, f)
+    
     if not {'URL', 'Company Name', 'Tag'}.issubset(df.columns):
         return "**Error:** The Excel file must contain 'URL', 'Company Name', and 'Tag' columns.", "", "", -1
     df.to_csv(output_file, index=False)
@@ -79,7 +97,9 @@ def main():
             first_url = gr.Markdown()
             first_company = gr.Textbox(label="First Company Name", interactive=False)
             first_index = gr.Number(label="Start Index", interactive=False)
-            upload_button.click(upload_excel, inputs=[upload_component, password_input], outputs=[upload_output, first_url, first_company, first_index])
+            num_sets_input = gr.Number(label="Number of Sets")
+            num_users_input = gr.Number(label="Users per Set")
+            upload_button.click(upload_excel, inputs=[upload_component, password_input, num_sets_input, num_users_input], outputs=[upload_output, first_url, first_company, first_index])
         
         with gr.Tab("Tag News"):
             gr.Markdown("### **Tag News URL**")
