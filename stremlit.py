@@ -10,6 +10,7 @@ admin_password = "x"  # Change this to a secure password
 credentials_file = "user_credentials.csv"
 
 # Load dataset
+global news_data
 news_data = []
 
 # Admin: Upload Excel and Account IDs
@@ -23,16 +24,13 @@ def upload_excel(file, account_ids_file, password):
     df = pd.read_excel(file.name)
     if not {'URL', 'Company Name', 'Tag'}.issubset(df.columns):
         return "**Error:** Excel file must contain 'URL', 'Company Name', and 'Tag'.", "", "", "", -1, pd.DataFrame()
-    df.to_csv(output_file, index=False)
+    df.to_csv("tagged_results.csv", index=False)
     news_data = df.to_dict(orient='records')
 
-    # Generate passwords for account_ids
-    with open(account_ids_file.name, 'r') as f:
-        account_ids = [line.strip() for line in f if line.strip()]
-
+    accounts = open(account_ids_file.name).read().splitlines()
     credentials = pd.DataFrame({
-        'account_id': account_ids,
-        'password': [secrets.token_urlsafe(8) for _ in account_ids]
+        'Account ID': account_ids,
+        'Password': [secrets.token_urlsafe(8) for _ in account_ids]
     })
     credentials.to_csv(credentials_file, index=False)
 
@@ -40,7 +38,7 @@ def upload_excel(file, account_ids_file, password):
         news_url = news_data[0]['URL']
         company_name = news_data[0]['Company Name']
         embed_code = f'<iframe src="{news_url}" width="100%" height="500px"></iframe>'
-        return "**Files uploaded successfully!**", news_url, company_name, embed_code, 0, credentials
+        return "**File uploaded successfully!**", news_url, company_name, embed_code, 0, credentials
     else:
         return "**File uploaded but contains no valid records.**", "", "", "", -1, pd.DataFrame()
 
@@ -50,10 +48,8 @@ def authenticate(account_id, password):
     if not os.path.exists(credentials_file):
         return False
     credentials = pd.read_csv(credentials_file)
-    match = credentials[(credentials['account_id'] == account_id) & (credentials['password'] == password)]
-    return not match.empty
-
-# Tagging function for users
+    user = credentials[(credentials['account_id'] == account_id) & (credentials['password'] == password)]
+    return not user.empty
 
 def tag_news(account_id, password, index, tag):
     global news_data
@@ -71,19 +67,17 @@ def tag_news(account_id, password, index, tag):
     else:
         return "**All records tagged.**", "", "", -1
 
-# Summary for admin
-
 def show_summary(password):
     if password != admin_password:
         return gr.update(visible=False)
-    if not os.path.exists(output_file):
-        return gr.update(value=pd.DataFrame({"Error": ["No data found."]}), visible=True)
-    df = pd.read_csv(output_file)
+    if not os.path.exists("tagged_results.csv"):
+        return gr.update(value=pd.DataFrame({"Error": ["No tagging data found."]}), visible=True)
+    df = pd.read_csv("tagged_results.csv")
     yes_count = df[df['Tag'] == 'Yes'].shape[0]
     no_count = df[df['Tag'] == 'No'].shape[0]
     return gr.update(value=pd.DataFrame({"Tag": ["Yes", "No"], "Count": [yes_count, no_count]}), visible=True)
 
-# Main App
+# Main app
 
 def main():
     parser = argparse.ArgumentParser(description="Gradio News Tagging App")
@@ -96,29 +90,38 @@ def main():
 
         with gr.Tab("Upload File"):
             admin_pwd = gr.Textbox(label="Admin Password", type="password")
-            excel_file = gr.File(label="Upload Excel File (.xlsx)")
+            excel_file = gr.File(label="Excel File (.xlsx)")
             account_ids_file = gr.File(label="Upload Account IDs (.txt)")
-            upload_btn = gr.Button("Upload")
+            upload_btn = gr.Button("Upload", variant="primary")
             upload_status = gr.Markdown()
             credentials_table = gr.DataFrame()
 
         with gr.Tab("Tag News"):
+            auth_status = gr.Markdown()
             user_id = gr.Textbox(label="Account ID")
             user_pwd = gr.Textbox(label="User Password", type="password")
+            login_btn = gr.Button("Login")
             url_display = gr.Markdown()
-            company_display = gr.Textbox(label="Company", interactive=False)
+            company_display = gr.Textbox(label="Company Name", interactive=False)
             preview = gr.HTML()
             idx_input = gr.Number(label="Index", value=0, interactive=False)
             tag_input = gr.Radio(["Yes", "No"], label="Related?")
-            tag_btn = gr.Button("Submit")
+            tag_btn = gr.Button("Submit", interactive=False)
+
+            def user_login(account_id, password):
+                if authenticate(account_id, password):
+                    return "**Authenticated ✅**", gr.update(visible=False), gr.update(visible=False), gr.update(interactive=True)
+                else:
+                    return "**Authentication failed.**", gr.update(visible=True), gr.update(visible=True), gr.update(interactive=False)
+
+            login_btn.click(user_login, [user_id, user_pwd], [auth_status, user_id, user_pwd, tag_btn])
 
         with gr.Tab("Summary"):
             summary_pwd = gr.Textbox(label="Admin Password", type="password")
             summary_btn = gr.Button("Show Summary")
             summary_output = gr.DataFrame(visible=False)
 
-        upload_btn.click(upload_excel, [excel_file, account_ids_file, admin_pwd], [upload_status, url_display, company_display, preview, idx_input, credentials_table])
-        tag_btn.click(tag_news, [user_id, user_pwd, idx_input, tag_input], [url_display, company_display, preview, idx_input])
+        upload_btn.click(upload_excel, [excel_file, account_ids_file, admin_pwd], [upload_status, credentials_table])
         summary_btn.click(show_summary, [summary_pwd], summary_output)
 
     app.launch(share=args.share, server_port=args.port)
