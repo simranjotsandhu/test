@@ -46,13 +46,13 @@ def tag_news(index, tag):
 
 def show_summary(password):
     if password != admin_password:
-        return pd.DataFrame({"Error": ["Unauthorized - Incorrect password."]})
+        return gr.update(visible=False)
     if not os.path.exists(output_file):
-        return pd.DataFrame({"Error": ["No tagging data found."]})
+        return gr.update(value=pd.DataFrame({"Error": ["No tagging data found."]}), visible=True)
     df = pd.read_csv(output_file)
     yes_count = df[df['Tag'] == 'Yes'].shape[0]
     no_count = df[df['Tag'] == 'No'].shape[0]
-    return pd.DataFrame({"Tag": ["Yes", "No"], "Count": [yes_count, no_count]})
+    return gr.update(value=pd.DataFrame({"Tag": ["Yes", "No"], "Count": [yes_count, no_count]}), visible=True)
 
 def main():
     parser = argparse.ArgumentParser(description="Run the Gradio News Tagging App")
@@ -81,7 +81,7 @@ def main():
         with gr.Tab("Summary"):
             summary_password = gr.Textbox(label="Admin Password", type="password")
             summary_button = gr.Button("Show Summary", variant="primary")
-            summary_output = gr.DataFrame()
+            summary_output = gr.DataFrame(visible=False)
             summary_button.click(show_summary, inputs=[summary_password], outputs=[summary_output])
 
         upload_button.click(
