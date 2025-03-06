@@ -41,7 +41,16 @@ def tag_news(index, tag):
         embed_code = f'<iframe src="{next_url}" width="100%" height="500px"></iframe>'
         return next_url, news_data[index + 1]['Company Name'], embed_code, index + 1
     else:
-        return "**All records have been tagged.**", "", "", -1
+        return "**All records have been tagged.**", "", "", "", -1
+
+def show_summary():
+    if not os.path.exists(output_file):
+        return "**No tagging data found.**"
+    df = pd.read_csv(output_file)
+    total = len(df)
+    yes_count = df[df['Tag'] == 'Yes'].shape[0]
+    no_count = df[df['Tag'] == 'No'].shape[0]
+    return gr.DataFrame(pd.DataFrame({"Tag": ["Yes", "No"], "Count": [yes_count, no_count]}))
 
 def main():
     parser = argparse.ArgumentParser(description="Run the Gradio News Tagging App")
@@ -58,9 +67,6 @@ def main():
             upload_component = gr.File(label="Upload Excel File", file_types=[".xlsx"])
             upload_button = gr.Button("Upload", variant="primary")
             upload_output = gr.Markdown()
-            first_url = gr.Markdown()
-            first_company = gr.Textbox(label="First Company Name", interactive=False)
-            first_index = gr.Number(label="Start Index", interactive=False)
 
         with gr.Tab("Tag News"):
             url_display = gr.Markdown()
@@ -69,6 +75,11 @@ def main():
             index_input = gr.Number(label="Index", value=0, interactive=False)
             tag_input = gr.Radio(choices=["Yes", "No"], label="Is this news related to the company?")
             tag_button = gr.Button("Submit", variant="primary", interactive=False)
+
+        with gr.Tab("Summary"):
+            summary_button = gr.Button("Show Summary", variant="primary")
+            summary_output = gr.DataFrame()
+            summary_button.click(show_summary, inputs=[], outputs=[summary_output])
 
         upload_button.click(
             upload_excel,
