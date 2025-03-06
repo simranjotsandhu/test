@@ -114,7 +114,35 @@ def main():
             tag_input = gr.Radio(["Yes", "No"], label="Related?", visible=False)
             tag_btn = gr.Button("Submit", interactive=False, visible=False, variant="primary")
 
-            login_btn.click(
+            def user_login(account_id, password):
+    global news_data
+    if authenticate(account_id, password):
+        if news_data:
+            news_url = news_data[0]['URL']
+            company_name = news_data[0]['Company Name']
+            embed_code = f'<iframe src="{news_url}" width="100%" height="500px"></iframe>'
+            return ("**Logged in successfully ✅**", 
+                    gr.update(visible=False), gr.update(visible=False), 
+                    gr.update(value=news_url, visible=True), 
+                    gr.update(value=company_name, visible=True), 
+                    gr.update(value=embed_code, visible=True), 
+                    gr.update(value=0, visible=True), 
+                    gr.update(visible=True), 
+                    gr.update(interactive=False, visible=True))
+        else:
+            return ("**No news data available.**", 
+                    gr.update(visible=True), gr.update(visible=True), 
+                    gr.update(visible=False), gr.update(visible=False), 
+                    gr.update(visible=False), gr.update(visible=False), 
+                    gr.update(visible=False), gr.update(visible=False))
+    else:
+        return ("**Authentication failed.**", 
+                gr.update(visible=True), gr.update(visible=True), 
+                gr.update(visible=False), gr.update(visible=False), 
+                gr.update(visible=False), gr.update(visible=False), 
+                gr.update(visible=False), gr.update(visible=False))
+
+login_btn.click(
                 user_login, 
                 [user_id, user_pwd], 
                 [user_account_display, user_id, user_pwd, url_display, company_display, preview, idx_input, tag_input, tag_btn]
