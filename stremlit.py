@@ -29,10 +29,11 @@ def upload_excel(file, password):
     else:
         return "**File uploaded but contains no valid records.**", "", "", "", -1
 
+
 def tag_news(index, tag):
     global news_data
-    if not os.path.exists(output_file) or not news_data or index == -1:
-        return "**All records have been tagged.**", "", "", "", -1
+    if index == -1 or not news_data:
+        return "**All records have been tagged.**", "", "", -1
     if 0 <= index < len(news_data):
         news_data[index]['Tag'] = tag
         pd.DataFrame(news_data).to_csv(output_file, index=False)
@@ -41,16 +42,17 @@ def tag_news(index, tag):
         embed_code = f'<iframe src="{next_url}" width="100%" height="500px"></iframe>'
         return next_url, news_data[index + 1]['Company Name'], embed_code, index + 1
     else:
-        return "**All records have been tagged.**", "", "", "", -1
+        return "**All records have been tagged.**", "", "", -1
 
-def show_summary():
+def show_summary(password):
+    if password != admin_password:
+        return pd.DataFrame({"Error": ["Unauthorized - Incorrect password."]})
     if not os.path.exists(output_file):
-        return "**No tagging data found.**"
+        return pd.DataFrame({"Error": ["No tagging data found."]})
     df = pd.read_csv(output_file)
-    total = len(df)
     yes_count = df[df['Tag'] == 'Yes'].shape[0]
     no_count = df[df['Tag'] == 'No'].shape[0]
-    return gr.DataFrame(pd.DataFrame({"Tag": ["Yes", "No"], "Count": [yes_count, no_count]}))
+    return pd.DataFrame({"Tag": ["Yes", "No"], "Count": [yes_count, no_count]})
 
 def main():
     parser = argparse.ArgumentParser(description="Run the Gradio News Tagging App")
@@ -77,9 +79,10 @@ def main():
             tag_button = gr.Button("Submit", variant="primary", interactive=False)
 
         with gr.Tab("Summary"):
+            summary_password = gr.Textbox(label="Admin Password", type="password")
             summary_button = gr.Button("Show Summary", variant="primary")
             summary_output = gr.DataFrame()
-            summary_button.click(show_summary, inputs=[], outputs=[summary_output])
+            summary_button.click(show_summary, inputs=[summary_password], outputs=[summary_output])
 
         upload_button.click(
             upload_excel,
