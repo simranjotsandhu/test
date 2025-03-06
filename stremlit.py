@@ -43,6 +43,10 @@ def authenticate(account_id, password):
         return False
     try:
         credentials = pd.read_csv(credentials_file)
+        user = credentials[(credentials['account_id'] == account_id) & (credentials['password'] == password)]
+        return not user.empty
+    except Exception:
+        return False
     user = credentials[(credentials['account_id'] == account_id) & (credentials['password'] == password)]
     return not user.empty
 
@@ -60,7 +64,7 @@ def tag_news(account_id, password, index, tag):
         embed_code = f'<iframe src="{next_url}" width="100%" height="500px"></iframe>'
         return next_url, news_data[index + 1]['Company Name'], embed_code, index + 1
     else:
-        return "**All records tagged.**", "", "", -1
+        return "**All records tagged.**", "", "", ""
 
 def show_summary(password):
     if password != admin_password:
@@ -125,7 +129,7 @@ def main():
             )
 
             tag_input.change(
-                lambda choice: gr.update(interactive=True), 
+    lambda choice: gr.update(interactive=True) if choice else gr.update(interactive=False), 
                 inputs=[tag_input], 
                 outputs=[tag_btn]
             )
