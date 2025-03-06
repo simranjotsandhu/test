@@ -90,6 +90,12 @@ def main():
             upload_status = gr.Markdown()
             credentials_table = gr.DataFrame()
 
+            upload_btn.click(
+                upload_excel, 
+                [excel_file, account_ids_file, admin_pwd],
+                [upload_status, credentials_table]
+            )
+
         with gr.Tab("Tag News"):
             auth_status = gr.Markdown()
             user_id = gr.Textbox(label="Account ID")
@@ -116,6 +122,13 @@ def main():
                     return ("**Authentication failed.**", gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False))
 
             login_btn.click(user_login, [user_id, user_pwd], [auth_status, user_id, user_pwd, url_display, company_display, preview, idx_input, tag_input, tag_btn])
+
+        with gr.Tab("Summary"):
+            summary_pwd = gr.Textbox(label="Admin Password", type="password")
+            summary_btn = gr.Button("Show Summary", variant="primary")
+            summary_output = gr.DataFrame(visible=False)
+
+            summary_btn.click(show_summary, [summary_pwd], summary_output)
 
     app.launch(share=args.share, server_port=args.port)
 
