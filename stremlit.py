@@ -123,6 +123,12 @@ def main():
 
             login_btn.click(user_login, [user_id, user_pwd], [auth_status, user_id, user_pwd, url_display, company_display, preview, idx_input, tag_input, tag_btn])
 
+            tag_input.change(
+                lambda choice: gr.update(interactive=True), 
+                inputs=[tag_input], 
+                outputs=[tag_btn]
+            )
+
         with gr.Tab("Summary"):
             summary_pwd = gr.Textbox(label="Admin Password", type="password")
             summary_btn = gr.Button("Show Summary", variant="primary")
