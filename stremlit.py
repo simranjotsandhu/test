@@ -136,6 +136,18 @@ def main():
                 lambda _: gr.update(visible=True),
                 inputs=[user_id],
                 outputs=[time_spent_display]
+            ).then(
+                lambda _: gr.update(visible=False),
+                inputs=[user_id],
+                outputs=[login_btn]
+            ).then(
+                lambda account_id: gr.update(value=f'**Logged in as:** {account_id}', visible=True),
+                inputs=[user_id],
+                outputs=[user_account_display]
+            ).then(
+                lambda _: gr.update(visible=True),
+                inputs=[user_id],
+                outputs=[time_spent_display]
             )
 
             tag_input.change(
