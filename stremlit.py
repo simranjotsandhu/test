@@ -98,8 +98,7 @@ def main():
 
         with gr.Tab("Tag News"):
             with gr.Row():
-                user_account_display = gr.Markdown(visible=False)
-                time_spent_display = gr.Markdown(visible=False)
+    user_account_display = gr.Markdown(visible=False)
             auth_status = gr.Markdown()
             user_id = gr.Textbox(label="Account ID")
             user_pwd = gr.Textbox(label="User Password", type="password")
