@@ -103,20 +103,19 @@ def main():
             tag_btn = gr.Button("Submit", interactive=False, visible=False)
 
             def user_login(account_id, password):
+                global news_data
                 if authenticate(account_id, password):
-                    return ("**Authenticated ✅**", gr.update(visible=False), gr.update(visible=False), gr.update(visible=True), gr.update(visible=True), gr.update(visible=True), gr.update(visible=True), gr.update(visible=True), 0)
+                    if news_data:
+                        news_url = news_data[0]['URL']
+                        company_name = news_data[0]['Company Name']
+                        embed_code = f'<iframe src="{news_url}" width="100%" height="500px"></iframe>'
+                        return ("**Authenticated ✅**", gr.update(visible=False), gr.update(visible=False), gr.update(value=news_url, visible=True), gr.update(value=company_name, visible=True), gr.update(value=embed_code, visible=True), gr.update(value=0, visible=True), gr.update(visible=True), gr.update(interactive=False, visible=True))
+                    else:
+                        return ("**No news data found.**", gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False))
                 else:
-                    return ("**Authentication failed.**", gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), -1)
+                    return ("**Authentication failed.**", gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False))
 
             login_btn.click(user_login, [user_id, user_pwd], [auth_status, user_id, user_pwd, url_display, company_display, preview, idx_input, tag_input, tag_btn])
-
-        with gr.Tab("Summary"):
-            summary_pwd = gr.Textbox(label="Admin Password", type="password")
-            summary_btn = gr.Button("Show Summary")
-            summary_output = gr.DataFrame(visible=False)
-
-        upload_btn.click(upload_excel, [excel_file, account_ids_file, admin_pwd], [upload_status, credentials_table])
-        summary_btn.click(show_summary, [summary_pwd], summary_output)
 
     app.launch(share=args.share, server_port=args.port)
 
