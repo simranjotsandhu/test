@@ -1,4 +1,4 @@
-import argparse
+      import argparse
 import gradio as gr
 import pandas as pd
 import os
@@ -97,10 +97,9 @@ def main():
             )
 
         with gr.Tab("Tag News"):
-            user_info = gr.Row([
-                gr.Markdown(visible=False, label="User Account"),
-                gr.Markdown(visible=False, label="Time Spent")
-            ])
+            with gr.Row():
+                user_account_display = gr.Markdown(visible=False)
+                time_spent_display = gr.Markdown(visible=False)
             auth_status = gr.Markdown()
             user_id = gr.Textbox(label="Account ID")
             user_pwd = gr.Textbox(label="User Password", type="password")
@@ -124,19 +123,19 @@ def main():
                         return ("**No news data found.**", gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False))
                 else:
                     return ("**Authentication failed.**", gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False))
-
+            
             login_btn.click(
                 user_login, 
                 [user_id, user_pwd], 
-                [user_info[0], user_id, user_pwd, url_display, company_display, preview, idx_input, tag_input, tag_btn]
+                [user_account_display, user_id, user_pwd, url_display, company_display, preview, idx_input, tag_input, tag_btn]
             ).then(
                 lambda account_id: gr.update(value=f'**Logged in as:** {account_id}', visible=True),
                 inputs=[user_id],
-                outputs=[user_info[0]]
+                outputs=[user_account_display]
             ).then(
                 lambda _: gr.update(visible=True),
                 inputs=[user_id],
-                outputs=[user_info[1]]
+                outputs=[time_spent_display]
             )
 
             tag_input.change(
