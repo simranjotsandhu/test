@@ -18,29 +18,23 @@ news_data = []
 def upload_excel(file, account_ids_file, password):
     global news_data
     if password != admin_password:
-        return "**Error:** Unauthorized - Incorrect password.", "", "", "", -1, pd.DataFrame()
+        return "**Error:** Unauthorized - Incorrect password.", pd.DataFrame()
     if file is None or account_ids_file is None:
-        return "**Error:** Please upload both Excel and Account IDs files.", "", "", "", -1, pd.DataFrame()
+        return "**Error:** Please upload both Excel and Account IDs files.", pd.DataFrame()
     df = pd.read_excel(file.name)
     if not {'URL', 'Company Name', 'Tag'}.issubset(df.columns):
-        return "**Error:** Excel file must contain 'URL', 'Company Name', and 'Tag'.", "", "", "", -1, pd.DataFrame()
+        return "**Error:** Excel file must contain 'URL', 'Company Name', and 'Tag'.", pd.DataFrame()
     df.to_csv("tagged_results.csv", index=False)
     news_data = df.to_dict(orient='records')
 
-    accounts = open(account_ids_file.name).read().splitlines()
+    account_ids = open(account_ids_file.name).read().splitlines()
     credentials = pd.DataFrame({
-        'Account ID': account_ids,
-        'Password': [secrets.token_urlsafe(8) for _ in account_ids]
+        'account_id': account_ids,
+        'password': [secrets.token_urlsafe(8) for _ in account_ids]
     })
     credentials.to_csv(credentials_file, index=False)
 
-    if news_data:
-        news_url = news_data[0]['URL']
-        company_name = news_data[0]['Company Name']
-        embed_code = f'<iframe src="{news_url}" width="100%" height="500px"></iframe>'
-        return "**File uploaded successfully!**", news_url, company_name, embed_code, 0, credentials
-    else:
-        return "**File uploaded but contains no valid records.**", "", "", "", -1, pd.DataFrame()
+    return "**Files uploaded and credentials created successfully!**", credentials
 
 # User authentication
 
@@ -100,21 +94,21 @@ def main():
             auth_status = gr.Markdown()
             user_id = gr.Textbox(label="Account ID")
             user_pwd = gr.Textbox(label="User Password", type="password")
-            login_btn = gr.Button("Login")
-            url_display = gr.Markdown()
-            company_display = gr.Textbox(label="Company Name", interactive=False)
-            preview = gr.HTML()
-            idx_input = gr.Number(label="Index", value=0, interactive=False)
-            tag_input = gr.Radio(["Yes", "No"], label="Related?")
-            tag_btn = gr.Button("Submit", interactive=False)
+            login_btn = gr.Button("Login", variant="primary")
+            url_display = gr.Markdown(visible=False)
+            company_display = gr.Textbox(label="Company Name", interactive=False, visible=False)
+            preview = gr.HTML(visible=False)
+            idx_input = gr.Number(label="Index", value=0, interactive=False, visible=False)
+            tag_input = gr.Radio(["Yes", "No"], label="Related?", visible=False)
+            tag_btn = gr.Button("Submit", interactive=False, visible=False)
 
             def user_login(account_id, password):
                 if authenticate(account_id, password):
-                    return "**Authenticated ✅**", gr.update(visible=False), gr.update(visible=False), gr.update(interactive=True)
+                    return ("**Authenticated ✅**", gr.update(visible=False), gr.update(visible=False), gr.update(visible=True), gr.update(visible=True), gr.update(visible=True), gr.update(visible=True), gr.update(visible=True), 0)
                 else:
-                    return "**Authentication failed.**", gr.update(visible=True), gr.update(visible=True), gr.update(interactive=False)
+                    return ("**Authentication failed.**", gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), -1)
 
-            login_btn.click(user_login, [user_id, user_pwd], [auth_status, user_id, user_pwd, tag_btn])
+            login_btn.click(user_login, [user_id, user_pwd], [auth_status, user_id, user_pwd, url_display, company_display, preview, idx_input, tag_input, tag_btn])
 
         with gr.Tab("Summary"):
             summary_pwd = gr.Textbox(label="Admin Password", type="password")
