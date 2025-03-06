@@ -97,6 +97,10 @@ def main():
             )
 
         with gr.Tab("Tag News"):
+            user_info = gr.Row([
+                gr.Markdown(visible=False, label="User Account"),
+                gr.Markdown(visible=False, label="Time Spent")
+            ])
             auth_status = gr.Markdown()
             user_id = gr.Textbox(label="Account ID")
             user_pwd = gr.Textbox(label="User Password", type="password")
@@ -106,7 +110,7 @@ def main():
             preview = gr.HTML(visible=False)
             idx_input = gr.Number(label="Index", value=0, interactive=False, visible=False)
             tag_input = gr.Radio(["Yes", "No"], label="Related?", visible=False)
-            tag_btn = gr.Button("Submit", interactive=False, visible=False)
+            tag_btn = gr.Button("Submit", interactive=False, visible=False, variant="primary")
 
             def user_login(account_id, password):
                 global news_data
@@ -121,7 +125,19 @@ def main():
                 else:
                     return ("**Authentication failed.**", gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False))
 
-            login_btn.click(user_login, [user_id, user_pwd], [auth_status, user_id, user_pwd, url_display, company_display, preview, idx_input, tag_input, tag_btn])
+            login_btn.click(
+                user_login, 
+                [user_id, user_pwd], 
+                [user_info[0], user_id, user_pwd, url_display, company_display, preview, idx_input, tag_input, tag_btn]
+            ).then(
+                lambda account_id: gr.update(value=f'**Logged in as:** {account_id}', visible=True),
+                inputs=[user_id],
+                outputs=[user_info[0]]
+            ).then(
+                lambda _: gr.update(visible=True),
+                inputs=[user_id],
+                outputs=[user_info[1]]
+            )
 
             tag_input.change(
                 lambda choice: gr.update(interactive=True), 
