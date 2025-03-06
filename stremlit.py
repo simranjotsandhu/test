@@ -129,6 +129,16 @@ def main():
                 outputs=[tag_btn]
             )
 
+            tag_btn.click(
+                tag_news,
+                inputs=[user_id, user_pwd, idx_input, tag_input],
+                outputs=[url_display, company_display, preview, idx_input]
+            ).then(
+                lambda idx: gr.update(interactive=False) if idx == -1 else gr.update(interactive=True),
+                inputs=[idx_input],
+                outputs=[tag_btn]
+            )
+
         with gr.Tab("Summary"):
             summary_pwd = gr.Textbox(label="Admin Password", type="password")
             summary_btn = gr.Button("Show Summary", variant="primary")
