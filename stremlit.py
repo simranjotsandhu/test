@@ -41,7 +41,8 @@ def upload_excel(file, account_ids_file, password):
 def authenticate(account_id, password):
     if not os.path.exists(credentials_file):
         return False
-    credentials = pd.read_csv(credentials_file)
+    try:
+        credentials = pd.read_csv(credentials_file)
     user = credentials[(credentials['account_id'] == account_id) & (credentials['password'] == password)]
     return not user.empty
 
@@ -50,7 +51,7 @@ def tag_news(account_id, password, index, tag):
     if not authenticate(account_id, password):
         return "**Authentication failed.**", "", "", -1
     if index == -1 or not news_data:
-        return "**All records tagged.**", "", "", -1
+        return "**All records tagged.**", "", "", ""
     if 0 <= index < len(news_data):
         news_data[index]['Tag'] = tag
         pd.DataFrame(news_data).to_csv(output_file, index=False)
@@ -97,8 +98,7 @@ def main():
             )
 
         with gr.Tab("Tag News"):
-            with gr.Row():
-    user_account_display = gr.Markdown(visible=False)
+            user_account_display = gr.Markdown(visible=False)
             auth_status = gr.Markdown()
             user_id = gr.Textbox(label="Account ID")
             user_pwd = gr.Textbox(label="User Password", type="password")
@@ -110,19 +110,6 @@ def main():
             tag_input = gr.Radio(["Yes", "No"], label="Related?", visible=False)
             tag_btn = gr.Button("Submit", interactive=False, visible=False, variant="primary")
 
-            def user_login(account_id, password):
-                global news_data
-                if authenticate(account_id, password):
-                    if news_data:
-                        news_url = news_data[0]['URL']
-                        company_name = news_data[0]['Company Name']
-                        embed_code = f'<iframe src="{news_url}" width="100%" height="500px"></iframe>'
-                        return ("**Authenticated ✅**", gr.update(visible=False), gr.update(visible=False), gr.update(value=news_url, visible=True), gr.update(value=company_name, visible=True), gr.update(value=embed_code, visible=True), gr.update(value=0, visible=True), gr.update(visible=True), gr.update(interactive=False, visible=True))
-                    else:
-                        return ("**No news data found.**", gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False))
-                else:
-                    return ("**Authentication failed.**", gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False))
-            
             login_btn.click(
                 user_login, 
                 [user_id, user_pwd], 
@@ -132,21 +119,9 @@ def main():
                 inputs=[user_id],
                 outputs=[user_account_display]
             ).then(
-                lambda _: gr.update(visible=True),
-                inputs=[user_id],
-                outputs=[time_spent_display]
-            ).then(
                 lambda _: gr.update(visible=False),
                 inputs=[user_id],
                 outputs=[login_btn]
-            ).then(
-                lambda account_id: gr.update(value=f'**Logged in as:** {account_id}', visible=True),
-                inputs=[user_id],
-                outputs=[user_account_display]
-            ).then(
-                lambda _: gr.update(visible=True),
-                inputs=[user_id],
-                outputs=[time_spent_display]
             )
 
             tag_input.change(
@@ -170,7 +145,7 @@ def main():
             summary_btn = gr.Button("Show Summary", variant="primary")
             summary_output = gr.DataFrame(visible=False)
 
-            summary_btn.click(show_summary, [summary_pwd], summary_output)
+            summary_btn.click(show_summary, inputs=[summary_pwd], outputs=[summary_output])
 
     app.launch(share=args.share, server_port=args.port)
 
