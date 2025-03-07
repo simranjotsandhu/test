@@ -4,6 +4,7 @@ import pandas as pd
 import os
 import secrets
 import random
+import math
 
 # Global variables
 output_file = "tagged_results.csv"
@@ -32,36 +33,47 @@ def upload_excel(file, account_ids_file, password, num_sets, num_users_per_set):
     news_data = [{'URL': row['URL'], 'Company Name': row['Company Name'], 'Tag': row.get('Tag', '')} for _, row in df.iterrows()]
     N = len(df)
     account_ids = open(account_ids_file.name).read().splitlines()
+    M = len(account_ids)
     
     # Validate set and user inputs
     num_sets = int(num_sets)
     num_users_per_set = int(num_users_per_set)
     if num_sets <= 0 or num_users_per_set <= 0:
         return "**Error:** Number of sets and users per set must be positive.", None, None, gr.update(visible=False), gr.update(visible=False)
-    if len(account_ids) < num_users_per_set:
-        return "**Error:** Not enough users to assign to sets.", None, None, gr.update(visible=False), gr.update(visible=False)
+    if num_users_per_set * num_sets > M:
+        return "**Error:** Total assignments exceed available users.", None, None, gr.update(visible=False), gr.update(visible=False)
     
     # Divide rows into sets
     indices = list(range(N))
-    # random.shuffle(indices)  # Uncomment if random row assignment is desired
+    # random.shuffle(indices)  # Uncomment if random row assignment within sets is desired
     sets = [indices[i::num_sets] for i in range(num_sets)]
     
-    # Assign sets to users
-    set_to_users = {}
-    for set_idx in range(num_sets):
-        assigned_users = random.sample(account_ids, num_users_per_set)
-        set_to_users[set_idx] = assigned_users
+    # Distribute sets evenly among users
+    total_assignments = num_sets * num_users_per_set
+    sets_per_user_base = total_assignments // M  # Base number of sets per user
+    extra_sets = total_assignments % M  # Remainder sets to distribute
+    
+    user_to_sets = {account_id: [] for account_id in account_ids}
+    set_to_users = {i: [] for i in range(num_sets)}
+    set_indices = list(range(num_sets))
+    random.shuffle(set_indices)  # Shuffle sets for random assignment
+    
+    # Assign base number of sets to each user
+    assignment_idx = 0
+    for user in account_ids:
+        num_sets_for_user = sets_per_user_base + (1 if assignment_idx < extra_sets else 0)
+        assigned_sets = set_indices[assignment_idx:assignment_idx + num_sets_for_user]
+        user_to_sets[user] = assigned_sets
+        for set_idx in assigned_sets:
+            set_to_users[set_idx].append(user)
+        assignment_idx += num_sets_for_user
     
     # Compute user to row mapping
-    user_to_sets = {account_id: [] for account_id in account_ids}
-    for set_idx, users in set_to_users.items():
-        for user in users:
-            user_to_sets[user].append(set_idx)
     user_to_rows = {}
     for account_id in account_ids:
         assigned_sets = user_to_sets[account_id]
         rows = sum([sets[set_idx] for set_idx in assigned_sets], [])
-        user_to_rows[account_id] = sorted(rows)  # Sort for consistent order
+        user_to_rows[account_id] = sorted(rows)
     
     # Generate credentials
     passwords = [secrets.token_urlsafe(8) for _ in account_ids]
@@ -74,9 +86,9 @@ def upload_excel(file, account_ids_file, password, num_sets, num_users_per_set):
         'password': passwords
     })
     credentials_full.to_csv(credentials_file, index=False)
-    df.to_csv(output_file, index=False)  # Initial save of tagged results
+    df.to_csv(output_file, index=False)
     
-    return "**Files uploaded, sets assigned, and credentials created successfully!**", credentials_hidden, credentials_full, gr.update(visible=True), gr.update(visible=True)
+    return "**Files uploaded, sets assigned evenly, and credentials created successfully!**", credentials_hidden, credentials_full, gr.update(visible=True), gr.update(visible=True)
 
 def toggle_passwords(show_passwords, hidden_df, full_df):
     return full_df if show_passwords else hidden_df
@@ -132,18 +144,38 @@ def submit_tag(account_id, password, user_assigned_rows, user_current_idx, tag):
         return "**All assigned records tagged.**", "", "", user_current_idx
 
 def show_summary(password):
+    global news_data, user_to_rows, sets, set_to_users
     if password != admin_password:
-        return gr.update(visible=False), gr.update(visible=False)
+        return gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)
     if not os.path.exists(output_file):
-        return gr.update(value=pd.DataFrame({"Error": ["No tagging data found."]}), visible=True), gr.update(visible=False)
+        return gr.update(value=pd.DataFrame({"Error": ["No tagging data found."]}), visible=True), gr.update(visible=False), gr.update(visible=False)
+    
+    # Tag summary
     df = pd.read_csv(output_file)
     yes_count = df[df['Tag'] == 'Yes'].shape[0]
     no_count = df[df['Tag'] == 'No'].shape[0]
     summary_df = pd.DataFrame({"Tag": ["Yes", "No"], "Count": [yes_count, no_count]})
+    
+    # Set assignment summary
     assignment_data = [{"Set Index": set_idx, "Number of Rows": len(sets[set_idx]), "Assigned Users": ", ".join(set_to_users[set_idx])} 
                       for set_idx in range(len(sets))]
     assignment_df = pd.DataFrame(assignment_data)
-    return gr.update(value=summary_df, visible=True), gr.update(value=assignment_df, visible=True)
+    
+    # Tagging status per user
+    status_data = []
+    for user, rows in user_to_rows.items():
+        total_rows = len(rows)
+        untagged_count = sum(1 for row_idx in rows if not news_data[row_idx]['Tag'] or news_data[row_idx]['Tag'].strip() == '')
+        assigned_sets = [set_idx for set_idx, users in set_to_users.items() if user in users]
+        status_data.append({
+            "User": user,
+            "Assigned Sets": ", ".join(map(str, assigned_sets)),
+            "Total Rows": total_rows,
+            "Rows Left to Tag": untagged_count
+        })
+    status_df = pd.DataFrame(status_data)
+    
+    return gr.update(value=summary_df, visible=True), gr.update(value=assignment_df, visible=True), gr.update(value=status_df, visible=True)
 
 # Main app
 def main():
@@ -235,11 +267,12 @@ def main():
             summary_btn = gr.Button("Show Summary", variant="primary")
             summary_output = gr.DataFrame(visible=False)
             assignment_summary = gr.DataFrame(visible=False)
+            tagging_status = gr.DataFrame(visible=False)
 
             summary_btn.click(
                 show_summary,
                 [summary_pwd],
-                [summary_output, assignment_summary]
+                [summary_output, assignment_summary, tagging_status]
             )
 
     app.launch(share=args.share, server_port=args.port)
