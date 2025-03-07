@@ -15,8 +15,7 @@ progress_file = "user_progress.csv"
 ADMIN_STATE_FILE = "admin_state.json"
 
 # Ensure uploads directory exists
-if not os.path.exists("uploads"):
-    os.makedirs("uploads")
+os.makedirs("uploads", exist_ok=True)
 
 # Load dataset and assignment mappings
 global news_data, user_to_rows, sets, set_to_users
@@ -120,21 +119,19 @@ def admin_reset():
         gr.update(value="State reset", visible=True)  # admin_auth_status
     )
 
-# Admin upload function (preserves original upload logic)
+# Admin upload function (updated to handle file paths)
 def admin_upload(excel_file, account_ids_file, num_sets, num_users_per_set):
     global news_data, user_to_rows, sets, set_to_users
     state = load_admin_state()
     
-    # Save new files if uploaded
+    # Save new files if uploaded by copying them to the uploads directory
     if excel_file is not None:
         excel_path = "uploads/news_data.xlsx"
-        with open(excel_path, "wb") as f:
-            f.write(excel_file.read())
+        shutil.copy(excel_file, excel_path)
         state["excel_file"] = excel_path
     if account_ids_file is not None:
         account_ids_path = "uploads/account_ids.txt"
-        with open(account_ids_path, "wb") as f:
-            f.write(account_ids_file.read())
+        shutil.copy(account_ids_file, account_ids_path)
         state["account_ids_file"] = account_ids_path
     
     # Update settings
@@ -243,7 +240,7 @@ def admin_upload(excel_file, account_ids_file, num_sets, num_users_per_set):
         gr.update(visible=True)
     )
 
-# User authentication function (unchanged)
+# User authentication function
 def authenticate(account_id, password):
     if not os.path.exists(credentials_file):
         return False, "No credentials found. Please upload files first."
@@ -255,7 +252,7 @@ def authenticate(account_id, password):
         return False, "Incorrect password."
     return False, "Account ID not found."
 
-# Tag news function (unchanged)
+# Tag news function
 def tag_news(account_id, password, tag):
     success, message = authenticate(account_id, password)
     if not success:
@@ -287,7 +284,7 @@ def tag_news(account_id, password, tag):
         return f"Tagged row {current_idx + 1}/{len(assigned_rows)}. Next: {next_row['Company Name']} - {next_row['URL']}", tagged_df
     return "All assigned rows tagged!", tagged_df
 
-# Summary function (unchanged)
+# Summary function
 def view_summary():
     if not os.path.exists(output_file):
         return "No data tagged yet."
@@ -316,8 +313,8 @@ def main():
             
             current_excel_label = gr.Textbox(label="Current Excel File", value=state.get("excel_file", "No file uploaded"), interactive=False, visible=admin_logged_in)
             current_account_ids_label = gr.Textbox(label="Current Account IDs File", value=state.get("account_ids_file", "No file uploaded"), interactive=False, visible=admin_logged_in)
-            excel_file = gr.File(label="Excel File (.xlsx)", visible=admin_logged_in)
-            account_ids_file = gr.File(label="Upload Account IDs (.txt)", visible=admin_logged_in)
+            excel_file = gr.File(label="Excel File (.xlsx)", type="filepath", visible=admin_logged_in)
+            account_ids_file = gr.File(label="Upload Account IDs (.txt)", type="filepath", visible=admin_logged_in)
             num_sets_input = gr.Number(label="Number of Sets", value=state.get("num_sets", 1), precision=0, visible=admin_logged_in)
             num_users_per_set_input = gr.Number(label="Number of Users per Set", value=state.get("num_users_per_set", 1), precision=0, visible=admin_logged_in)
             upload_btn = gr.Button("Upload", variant="primary", visible=admin_logged_in)
