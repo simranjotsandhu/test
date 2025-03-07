@@ -17,12 +17,12 @@ news_data = []
 def upload_excel(file, account_ids_file, password):
     global news_data
     if password != admin_password:
-        return "**Error:** Unauthorized - Incorrect password.", None, None
+        return "**Error:** Unauthorized - Incorrect password.", None, None, gr.update(visible=False), gr.update(visible=False)
     if file is None or account_ids_file is None:
-        return "**Error:** Please upload both Excel and Account IDs files.", None, None
+        return "**Error:** Please upload both Excel and Account IDs files.", None, None, gr.update(visible=False), gr.update(visible=False)
     df = pd.read_excel(file.name)
     if not {'URL', 'Company Name', 'Tag'}.issubset(df.columns):
-        return "**Error:** Excel file must contain 'URL', 'Company Name', and 'Tag'.", None, None
+        return "**Error:** Excel file must contain 'URL', 'Company Name', and 'Tag'.", None, None, gr.update(visible=False), gr.update(visible=False)
     df.to_csv("tagged_results.csv", index=False)
     news_data = df.to_dict(orient='records')
 
@@ -38,7 +38,7 @@ def upload_excel(file, account_ids_file, password):
     })
     credentials_full.to_csv(credentials_file, index=False)
 
-    return "**Files uploaded and credentials created successfully!**", credentials_hidden, credentials_full
+    return "**Files uploaded and credentials created successfully!**", credentials_hidden, credentials_full, gr.update(visible=True), gr.update(visible=True)
 
 def toggle_passwords(show_passwords, hidden_df, full_df):
     return full_df if show_passwords else hidden_df
@@ -93,18 +93,15 @@ def main():
             account_ids_file = gr.File(label="Upload Account IDs (.txt)")
             upload_btn = gr.Button("Upload", variant="primary")
             upload_status = gr.Markdown()
-            credentials_table = gr.DataFrame()
-            show_passwords = gr.Checkbox(label="Show Passwords", value=False, visible=False)
+            credentials_table = gr.DataFrame(visible=False)  # Initially hidden
+            show_passwords = gr.Checkbox(label="Show Passwords", value=False, visible=False)  # Initially hidden
             hidden_credentials = gr.State(None)
             full_credentials = gr.State(None)
 
             upload_btn.click(
                 upload_excel, 
                 [excel_file, account_ids_file, admin_pwd],
-                [upload_status, credentials_table, full_credentials]
-            ).then(
-                lambda: gr.update(visible=True),
-                outputs=[show_passwords]
+                [upload_status, credentials_table, full_credentials, credentials_table, show_passwords]
             ).then(
                 lambda df: df,
                 inputs=[credentials_table],
