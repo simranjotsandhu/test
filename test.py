@@ -45,15 +45,14 @@ def upload_excel(file, account_ids_file, password, num_sets, num_users_per_set):
     
     # Divide rows into sets
     indices = list(range(N))
-    # random.shuffle(indices)  # Uncomment if random row assignment is desired
     sets = [indices[i::num_sets] for i in range(num_sets)]
     
     # Distribute users evenly across sets
-    base_users_per_set = M // num_sets  # Minimum number of users per set
-    extra_users = M % num_sets  # Remaining users to distribute
+    base_users_per_set = M // num_sets
+    extra_users = M % num_sets
     set_to_users = {}
     shuffled_users = account_ids.copy()
-    random.shuffle(shuffled_users)  # Shuffle to randomize assignment
+    random.shuffle(shuffled_users)
     user_idx = 0
     for set_idx in range(num_sets):
         num_users = base_users_per_set + (1 if set_idx < extra_users else 0)
@@ -70,7 +69,7 @@ def upload_excel(file, account_ids_file, password, num_sets, num_users_per_set):
     for account_id in account_ids:
         assigned_sets = user_to_sets[account_id]
         rows = sum([sets[set_idx] for set_idx in assigned_sets], [])
-        user_to_rows[account_id] = sorted(rows)  # Sort for consistent order
+        user_to_rows[account_id] = sorted(rows)
     
     # Generate credentials
     passwords = [secrets.token_urlsafe(8) for _ in account_ids]
@@ -83,7 +82,7 @@ def upload_excel(file, account_ids_file, password, num_sets, num_users_per_set):
         'password': passwords
     })
     credentials_full.to_csv(credentials_file, index=False)
-    df.to_csv(output_file, index=False)  # Initial save of tagged results
+    df.to_csv(output_file, index=False)
     
     return "**Files uploaded, sets assigned evenly, and credentials created successfully!**", credentials_hidden, credentials_full, gr.update(visible=True), gr.update(visible=True)
 
@@ -150,6 +149,7 @@ def show_summary(password):
     
     # Tag summary
     df = pd.read_csv(output_file)
+    df['Tag'] = df['Tag'].fillna('')  # Replace NaN with empty string
     yes_count = df[df['Tag'] == 'Yes'].shape[0]
     no_count = df[df['Tag'] == 'No'].shape[0]
     summary_df = pd.DataFrame({"Tag": ["Yes", "No"], "Count": [yes_count, no_count]})
