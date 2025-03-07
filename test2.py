@@ -9,14 +9,14 @@ import shutil
 
 # Global variables
 output_file = "tagged_results.csv"
-admin_password = "x"  # Change to a secure password in production
+admin_password = "adminpass"  # Change to a secure password in production
 credentials_file = "user_credentials.csv"
 progress_file = "user_progress.csv"
 ADMIN_STATE_FILE = "admin_state.json"
 UPLOADS_DIR = "uploads"
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
-# Load dataset and assignment mappings
+# Load dataset and assignment mappings (placeholders for additional functionality)
 global news_data, user_to_rows, sets, set_to_users
 news_data = []
 user_to_rows = {}
@@ -40,10 +40,28 @@ def save_admin_state(state):
     with open(ADMIN_STATE_FILE, "w") as f:
         json.dump(state, f)
 
+# Load hidden credentials
+def load_hidden_credentials():
+    """Load credentials with hidden passwords from user_credentials.csv."""
+    if os.path.exists(credentials_file):
+        credentials = pd.read_csv(credentials_file)
+        return pd.DataFrame({
+            'account_id': credentials['account_id'],
+            'password': ['[Hidden]' for _ in credentials['account_id']]
+        })
+    return pd.DataFrame(columns=['account_id', 'password'])
+
+# Load full credentials
+def load_full_credentials():
+    """Load full credentials from user_credentials.csv."""
+    if os.path.exists(credentials_file):
+        return pd.read_csv(credentials_file)
+    return pd.DataFrame(columns=['account_id', 'password'])
+
 # Admin login function
 def admin_login(username, password):
     """Handle admin login, updating visibility and component values based on authentication."""
-    if username == "admin" and password == "adminpass":  # Replace with secure credentials in production
+    if username == "admin" and password == admin_password:
         state = load_admin_state()
         state["logged_in"] = True
         save_admin_state(state)
@@ -54,7 +72,8 @@ def admin_login(username, password):
             gr.update(value=state.get("account_ids_file", "No file uploaded")),
             gr.update(value=state.get("num_sets", 1)),
             gr.update(value=state.get("num_users_per_set", 1)),
-            gr.update(value="Login successful!")
+            gr.update(value="Login successful!"),
+            gr.update(value=load_hidden_credentials())  # Set credentials_table
         )
     else:
         return (
@@ -64,7 +83,8 @@ def admin_login(username, password):
             gr.update(value=""),
             gr.update(value=1),
             gr.update(value=1),
-            gr.update(value="Incorrect credentials")
+            gr.update(value="Incorrect credentials"),
+            gr.update(value=None)  # Clear credentials_table
         )
 
 # Admin logout function
@@ -80,7 +100,8 @@ def admin_logout():
         gr.update(value=""),
         gr.update(value=1),
         gr.update(value=1),
-        gr.update(value="Logged out")
+        gr.update(value="Logged out"),
+        gr.update(value=None)  # Clear credentials_table
     )
 
 # Admin reset function
@@ -92,6 +113,8 @@ def admin_reset():
         file_path = os.path.join(UPLOADS_DIR, file)
         if os.path.exists(file_path):
             os.remove(file_path)
+    if os.path.exists(credentials_file):
+        os.remove(credentials_file)
     return (
         gr.update(visible=True),   # Show login_col
         gr.update(visible=False),  # Hide upload_col
@@ -99,7 +122,8 @@ def admin_reset():
         gr.update(value=""),
         gr.update(value=1),
         gr.update(value=1),
-        gr.update(value="State reset")
+        gr.update(value="State reset"),
+        gr.update(value=None)  # Clear credentials_table
     )
 
 # Admin upload function
@@ -130,7 +154,6 @@ def admin_upload(excel_file, account_ids_file, num_sets, num_users_per_set):
         return (
             gr.update(value="**Error:** Files not uploaded.", visible=True),
             None,
-            None,
             gr.update(value=state.get("excel_file", "No file uploaded")),
             gr.update(value=state.get("account_ids_file", "No file uploaded"))
         )
@@ -140,7 +163,6 @@ def admin_upload(excel_file, account_ids_file, num_sets, num_users_per_set):
     if not {'URL', 'Company Name', 'Tag'}.issubset(df.columns):
         return (
             gr.update(value="**Error:** Excel file must contain 'URL', 'Company Name', and 'Tag'.", visible=True),
-            None,
             None,
             gr.update(value=state.get("excel_file", "No file uploaded")),
             gr.update(value=state.get("account_ids_file", "No file uploaded"))
@@ -157,7 +179,6 @@ def admin_upload(excel_file, account_ids_file, num_sets, num_users_per_set):
     if num_sets <= 0 or num_users_per_set <= 0:
         return (
             gr.update(value="**Error:** Number of sets and users per set must be positive.", visible=True),
-            None,
             None,
             gr.update(value=state.get("excel_file", "No file uploaded")),
             gr.update(value=state.get("account_ids_file", "No file uploaded"))
@@ -210,66 +231,18 @@ def admin_upload(excel_file, account_ids_file, num_sets, num_users_per_set):
     
     return (
         gr.update(value="**Files uploaded, sets assigned evenly, and credentials created successfully!**", visible=True),
-        credentials_hidden,
-        credentials_full,
+        credentials_hidden,  # Update credentials_table with hidden passwords
         gr.update(value=state["excel_file"]),
         gr.update(value=state["account_ids_file"])
     )
 
-# User authentication function
-def authenticate(account_id, password):
-    """Authenticate a user based on credentials file."""
-    if not os.path.exists(credentials_file):
-        return False, "No credentials found. Please upload files first."
-    credentials = pd.read_csv(credentials_file)
-    if account_id in credentials['account_id'].values:
-        stored_password = credentials[credentials['account_id'] == account_id]['password'].values[0]
-        if stored_password == password:
-            return True, "Login successful!"
-        return False, "Incorrect password."
-    return False, "Account ID not found."
-
-# Tag news function
-def tag_news(account_id, password, tag):
-    """Handle news tagging for authenticated users."""
-    success, message = authenticate(account_id, password)
-    if not success:
-        return message, None
-    if not os.path.exists(progress_file) or not os.path.exists(output_file):
-        return "Files not uploaded yet.", None
-    
-    progress_df = pd.read_csv(progress_file)
-    tagged_df = pd.read_csv(output_file)
-    if account_id not in user_to_rows:
-        return "No rows assigned to this user.", None
-    
-    current_idx = progress_df[progress_df['account_id'] == account_id]['current_idx'].values[0]
-    assigned_rows = user_to_rows[account_id]
-    
-    if current_idx >= len(assigned_rows):
-        return "All assigned rows tagged!", tagged_df
-    
-    row_idx = assigned_rows[current_idx]
-    tagged_df.at[row_idx, 'Tag'] = tag
-    tagged_df.to_csv(output_file, index=False)
-    
-    progress_df.loc[progress_df['account_id'] == account_id, 'current_idx'] = current_idx + 1
-    progress_df.to_csv(progress_file, index=False)
-    
-    next_idx = current_idx + 1
-    if next_idx < len(assigned_rows):
-        next_row = news_data[assigned_rows[next_idx]]
-        return f"Tagged row {current_idx + 1}/{len(assigned_rows)}. Next: {next_row['Company Name']} - {next_row['URL']}", tagged_df
-    return "All assigned rows tagged!", tagged_df
-
-# Summary function
-def view_summary():
-    """Display a summary of tagged data."""
-    if not os.path.exists(output_file):
-        return "No data tagged yet."
-    df = pd.read_csv(output_file)
-    summary = df['Tag'].value_counts().to_dict()
-    return "\n".join([f"{tag}: {count}" for tag, count in summary.items()])
+# Toggle passwords function
+def toggle_passwords(show):
+    """Toggle between hidden and full credentials based on the checkbox state."""
+    if show:
+        return load_full_credentials()
+    else:
+        return load_hidden_credentials()
 
 # Main app
 def main():
@@ -289,7 +262,7 @@ def main():
         with gr.Tab("Upload File"):
             with gr.Column(visible=not admin_logged_in) as login_col:
                 admin_username = gr.Textbox(label="Admin Username")
-                admin_password = gr.Textbox(label="Admin Password", type="password")
+                admin_password_input = gr.Textbox(label="Admin Password", type="password")
                 admin_login_btn = gr.Button("Login")
                 admin_auth_status = gr.Markdown()
 
@@ -320,65 +293,57 @@ def main():
                 logout_btn = gr.Button("Logout", variant="secondary")
                 reset_btn = gr.Button("Reset", variant="secondary")
                 upload_status = gr.Markdown()
-                credentials_table = gr.DataFrame()
-                full_credentials = gr.State()
+                credentials_table = gr.DataFrame(
+                    value=load_hidden_credentials() if admin_logged_in else None,
+                    headers=['account_id', 'password'],
+                    label="User Credentials"
+                )
                 show_passwords = gr.Checkbox(label="Show Passwords", value=False)
 
             # Event handlers for Upload File tab
             admin_login_btn.click(
                 fn=admin_login,
-                inputs=[admin_username, admin_password],
-                outputs=[login_col, upload_col, current_excel_label, current_account_ids_label, num_sets_input, num_users_per_set_input, admin_auth_status]
+                inputs=[admin_username, admin_password_input],
+                outputs=[
+                    login_col, upload_col, current_excel_label, current_account_ids_label,
+                    num_sets_input, num_users_per_set_input, admin_auth_status, credentials_table
+                ]
             )
 
             logout_btn.click(
                 fn=admin_logout,
-                outputs=[login_col, upload_col, current_excel_label, current_account_ids_label, num_sets_input, num_users_per_set_input, admin_auth_status]
+                outputs=[
+                    login_col, upload_col, current_excel_label, current_account_ids_label,
+                    num_sets_input, num_users_per_set_input, admin_auth_status, credentials_table
+                ]
             )
 
             reset_btn.click(
                 fn=admin_reset,
-                outputs=[login_col, upload_col, current_excel_label, current_account_ids_label, num_sets_input, num_users_per_set_input, admin_auth_status]
+                outputs=[
+                    login_col, upload_col, current_excel_label, current_account_ids_label,
+                    num_sets_input, num_users_per_set_input, admin_auth_status, credentials_table
+                ]
             )
 
             upload_btn.click(
                 fn=admin_upload,
                 inputs=[excel_file, account_ids_file, num_sets_input, num_users_per_set_input],
-                outputs=[upload_status, credentials_table, full_credentials, current_excel_label, current_account_ids_label]
-            ).then(
-                lambda hidden: gr.update(value=hidden),
-                inputs=[credentials_table],
-                outputs=[credentials_table]
+                outputs=[upload_status, credentials_table, current_excel_label, current_account_ids_label]
             )
 
             show_passwords.change(
-                fn=lambda show, hidden, full: full if show else hidden,
-                inputs=[show_passwords, credentials_table, full_credentials],
+                fn=toggle_passwords,
+                inputs=[show_passwords],
                 outputs=[credentials_table]
             )
 
-        ### Tag News Tab
+        # Placeholder tabs for additional functionality
         with gr.Tab("Tag News"):
-            account_id_input = gr.Textbox(label="Account ID")
-            password_input = gr.Textbox(label="Password", type="password")
-            tag_input = gr.Textbox(label="Tag")
-            submit_tag_btn = gr.Button("Submit Tag")
-            tag_status = gr.Markdown()
-            tagged_data = gr.DataFrame()
-            submit_tag_btn.click(
-                fn=tag_news,
-                inputs=[account_id_input, password_input, tag_input],
-                outputs=[tag_status, tagged_data]
-            )
+            gr.Markdown("Tag News functionality here.")
 
-        ### Summary Tab
         with gr.Tab("Summary"):
-            summary_btn = gr.Button("View Summary")
-            summary_output = gr.Textbox(label="Tag Summary")
-            summary_btn.click(
-                fn=view_summary,
-                outputs=[summary_output]
-            )
+            gr.Markdown("Summary functionality here.")
 
     app.launch(share=args.share, server_port=args.port)
 
