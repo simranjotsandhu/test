@@ -164,7 +164,7 @@ def submit_tag(account_id, password, user_assigned_rows, user_current_idx, tag):
 def logout_user(account_id, user_current_idx):
     save_user_progress(account_id, user_current_idx)
     return ("**Logged out successfully.**", gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), 
-            gr.update(visible=False), gr.update(visible=False), [], -1, gr.update(visible=False), gr.update(visible=False), gr.update(visible=False))
+            gr.update(visible=False), gr.update(visible=False), [], -1, gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=True))
 
 def show_summary(password):
     if password != admin_password:
@@ -286,7 +286,10 @@ def main():
             logout_btn.click(
                 logout_user,
                 inputs=[user_id, user_current_idx],
-                outputs=[auth_status, user_id, user_pwd, url_display, company_display, preview, user_assigned_rows, user_current_idx, tag_input, tag_btn, logout_btn]
+                outputs=[auth_status, user_id, user_pwd, url_display, company_display, preview, user_assigned_rows, user_current_idx, tag_input, tag_btn, logout_btn, login_btn]
+            ).then(
+                lambda: gr.update(value=""),
+                outputs=[user_account_display]
             )
 
         with gr.Tab("Summary"):
