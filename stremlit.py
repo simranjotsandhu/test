@@ -41,12 +41,7 @@ def upload_excel(file, account_ids_file, password):
 def authenticate(account_id, password):
     if not os.path.exists(credentials_file):
         return False
-    try:
-        credentials = pd.read_csv(credentials_file)
-        user = credentials[(credentials['account_id'] == account_id) & (credentials['password'] == password)]
-        return not user.empty
-    except Exception:
-        return False
+    credentials = pd.read_csv(credentials_file)
     user = credentials[(credentials['account_id'] == account_id) & (credentials['password'] == password)]
     return not user.empty
 
@@ -55,7 +50,7 @@ def tag_news(account_id, password, index, tag):
     if not authenticate(account_id, password):
         return "**Authentication failed.**", "", "", -1
     if index == -1 or not news_data:
-        return "**All records tagged.**", "", "", ""
+        return "**All records tagged.**", "", "", -1
     if 0 <= index < len(news_data):
         news_data[index]['Tag'] = tag
         pd.DataFrame(news_data).to_csv(output_file, index=False)
@@ -64,7 +59,7 @@ def tag_news(account_id, password, index, tag):
         embed_code = f'<iframe src="{next_url}" width="100%" height="500px"></iframe>'
         return next_url, news_data[index + 1]['Company Name'], embed_code, index + 1
     else:
-        return "**All records tagged.**", "", "", ""
+        return "**All records tagged.**", "", "", -1
 
 def show_summary(password):
     if password != admin_password:
@@ -102,7 +97,9 @@ def main():
             )
 
         with gr.Tab("Tag News"):
-            user_account_display = gr.Markdown(visible=False)
+            with gr.Row():
+                user_account_display = gr.Markdown(visible=False)
+                time_spent_display = gr.Markdown(visible=False)
             auth_status = gr.Markdown()
             user_id = gr.Textbox(label="Account ID")
             user_pwd = gr.Textbox(label="User Password", type="password")
@@ -115,34 +112,19 @@ def main():
             tag_btn = gr.Button("Submit", interactive=False, visible=False, variant="primary")
 
             def user_login(account_id, password):
-    global news_data
-    if authenticate(account_id, password):
-        if news_data:
-            news_url = news_data[0]['URL']
-            company_name = news_data[0]['Company Name']
-            embed_code = f'<iframe src="{news_url}" width="100%" height="500px"></iframe>'
-            return ("**Logged in successfully ✅**", 
-                    gr.update(visible=False), gr.update(visible=False), 
-                    gr.update(value=news_url, visible=True), 
-                    gr.update(value=company_name, visible=True), 
-                    gr.update(value=embed_code, visible=True), 
-                    gr.update(value=0, visible=True), 
-                    gr.update(visible=True), 
-                    gr.update(interactive=False, visible=True))
-        else:
-            return ("**No news data available.**", 
-                    gr.update(visible=True), gr.update(visible=True), 
-                    gr.update(visible=False), gr.update(visible=False), 
-                    gr.update(visible=False), gr.update(visible=False), 
-                    gr.update(visible=False), gr.update(visible=False))
-    else:
-        return ("**Authentication failed.**", 
-                gr.update(visible=True), gr.update(visible=True), 
-                gr.update(visible=False), gr.update(visible=False), 
-                gr.update(visible=False), gr.update(visible=False), 
-                gr.update(visible=False), gr.update(visible=False))
-
-login_btn.click(
+                global news_data
+                if authenticate(account_id, password):
+                    if news_data:
+                        news_url = news_data[0]['URL']
+                        company_name = news_data[0]['Company Name']
+                        embed_code = f'<iframe src="{news_url}" width="100%" height="500px"></iframe>'
+                        return ("**Authenticated ✅**", gr.update(visible=False), gr.update(visible=False), gr.update(value=news_url, visible=True), gr.update(value=company_name, visible=True), gr.update(value=embed_code, visible=True), gr.update(value=0, visible=True), gr.update(visible=True), gr.update(interactive=False, visible=True))
+                    else:
+                        return ("**No news data found.**", gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False))
+                else:
+                    return ("**Authentication failed.**", gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False))
+            
+            login_btn.click(
                 user_login, 
                 [user_id, user_pwd], 
                 [user_account_display, user_id, user_pwd, url_display, company_display, preview, idx_input, tag_input, tag_btn]
@@ -157,7 +139,7 @@ login_btn.click(
             )
 
             tag_input.change(
-    lambda choice: gr.update(interactive=True) if choice else gr.update(interactive=False), 
+                lambda choice: gr.update(interactive=True), 
                 inputs=[tag_input], 
                 outputs=[tag_btn]
             )
@@ -177,7 +159,7 @@ login_btn.click(
             summary_btn = gr.Button("Show Summary", variant="primary")
             summary_output = gr.DataFrame(visible=False)
 
-            summary_btn.click(show_summary, inputs=[summary_pwd], outputs=[summary_output])
+            summary_btn.click(show_summary, [summary_pwd], summary_output)
 
     app.launch(share=args.share, server_port=args.port)
 
