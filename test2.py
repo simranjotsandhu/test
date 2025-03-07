@@ -43,35 +43,23 @@ def admin_login(username, password):
         state["logged_in"] = True
         save_admin_state(state)
         return (
-            gr.update(visible=False),  # admin_username
-            gr.update(visible=False),  # admin_password
-            gr.update(visible=False),  # admin_login_btn
-            gr.update(value=state.get("excel_file", "No file uploaded"), visible=True),  # current_excel_label
-            gr.update(value=state.get("account_ids_file", "No file uploaded"), visible=True),  # current_account_ids_label
-            gr.update(value=state.get("num_sets", 1), visible=True),  # num_sets_input
-            gr.update(value=state.get("num_users_per_set", 1), visible=True),  # num_users_per_set_input
-            gr.update(visible=True),  # excel_file
-            gr.update(visible=True),  # account_ids_file
-            gr.update(visible=True),  # upload_btn
-            gr.update(visible=True),  # logout_btn
-            gr.update(visible=True),  # reset_btn
-            gr.update(value="Login successful!", visible=True)  # admin_auth_status
+            gr.update(visible=False),  # login_col
+            gr.update(visible=True),   # upload_col
+            gr.update(value=state.get("excel_file", "No file uploaded")),  # current_excel_label
+            gr.update(value=state.get("account_ids_file", "No file uploaded")),  # current_account_ids_label
+            gr.update(value=state.get("num_sets", 1)),  # num_sets_input
+            gr.update(value=state.get("num_users_per_set", 1)),  # num_users_per_set_input
+            gr.update(value="Login successful!"),  # admin_auth_status
         )
     else:
         return (
-            gr.update(visible=True),
-            gr.update(visible=True),
-            gr.update(visible=True),
-            gr.update(visible=False),
-            gr.update(visible=False),
-            gr.update(visible=False),
-            gr.update(visible=False),
-            gr.update(visible=False),
-            gr.update(visible=False),
-            gr.update(visible=False),
-            gr.update(visible=False),
-            gr.update(visible=False),
-            gr.update(value="Incorrect credentials", visible=True)
+            gr.update(visible=True),  # login_col
+            gr.update(visible=False),  # upload_col
+            gr.update(value=""),  # current_excel_label
+            gr.update(value=""),  # current_account_ids_label
+            gr.update(value=1),  # num_sets_input
+            gr.update(value=1),  # num_users_per_set_input
+            gr.update(value="Incorrect credentials"),  # admin_auth_status
         )
 
 # Admin logout function
@@ -80,19 +68,13 @@ def admin_logout():
     state["logged_in"] = False
     save_admin_state(state)
     return (
-        gr.update(visible=True),  # admin_username
-        gr.update(value="", visible=True),  # admin_password
-        gr.update(visible=True),  # admin_login_btn
-        gr.update(visible=False),  # current_excel_label
-        gr.update(visible=False),  # current_account_ids_label
-        gr.update(visible=False),  # num_sets_input
-        gr.update(visible=False),  # num_users_per_set_input
-        gr.update(visible=False),  # excel_file
-        gr.update(visible=False),  # account_ids_file
-        gr.update(visible=False),  # upload_btn
-        gr.update(visible=False),  # logout_btn
-        gr.update(visible=False),  # reset_btn
-        gr.update(value="Logged out", visible=True)  # admin_auth_status
+        gr.update(visible=True),  # login_col
+        gr.update(visible=False),  # upload_col
+        gr.update(value=""),  # current_excel_label
+        gr.update(value=""),  # current_account_ids_label
+        gr.update(value=1),  # num_sets_input
+        gr.update(value=1),  # num_users_per_set_input
+        gr.update(value="Logged out"),  # admin_auth_status
     )
 
 # Admin reset function
@@ -104,19 +86,13 @@ def admin_reset():
         if os.path.exists(file_path):
             os.remove(file_path)
     return (
-        gr.update(visible=True),  # admin_username
-        gr.update(value="", visible=True),  # admin_password
-        gr.update(visible=True),  # admin_login_btn
-        gr.update(visible=False),  # current_excel_label
-        gr.update(visible=False),  # current_account_ids_label
-        gr.update(value=1, visible=False),  # num_sets_input
-        gr.update(value=1, visible=False),  # num_users_per_set_input
-        gr.update(visible=False),  # excel_file
-        gr.update(visible=False),  # account_ids_file
-        gr.update(visible=False),  # upload_btn
-        gr.update(visible=False),  # logout_btn
-        gr.update(visible=False),  # reset_btn
-        gr.update(value="State reset", visible=True)  # admin_auth_status
+        gr.update(visible=True),  # login_col
+        gr.update(visible=False),  # upload_col
+        gr.update(value=""),  # current_excel_label
+        gr.update(value=""),  # current_account_ids_label
+        gr.update(value=1),  # num_sets_input
+        gr.update(value=1),  # num_users_per_set_input
+        gr.update(value="State reset"),  # admin_auth_status
     )
 
 # Admin upload function (updated to handle file paths)
@@ -306,57 +282,40 @@ def main():
         gr.Markdown("# News Tagging Application")
 
         with gr.Tab("Upload File"):
-            admin_auth_status = gr.Markdown(value="", visible=True)
-            admin_username = gr.Textbox(label="Admin Username", visible=not admin_logged_in)
-            admin_password = gr.Textbox(label="Admin Password", type="password", visible=not admin_logged_in)
-            admin_login_btn = gr.Button("Login", visible=not admin_logged_in)
-            
-            current_excel_label = gr.Textbox(label="Current Excel File", value=state.get("excel_file", "No file uploaded"), interactive=False, visible=admin_logged_in)
-            current_account_ids_label = gr.Textbox(label="Current Account IDs File", value=state.get("account_ids_file", "No file uploaded"), interactive=False, visible=admin_logged_in)
-            excel_file = gr.File(label="Excel File (.xlsx)", type="filepath", visible=admin_logged_in)
-            account_ids_file = gr.File(label="Upload Account IDs (.txt)", type="filepath", visible=admin_logged_in)
-            num_sets_input = gr.Number(label="Number of Sets", value=state.get("num_sets", 1), precision=0, visible=admin_logged_in)
-            num_users_per_set_input = gr.Number(label="Number of Users per Set", value=state.get("num_users_per_set", 1), precision=0, visible=admin_logged_in)
-            upload_btn = gr.Button("Upload", variant="primary", visible=admin_logged_in)
-            logout_btn = gr.Button("Logout", variant="secondary", visible=admin_logged_in)
-            reset_btn = gr.Button("Reset", variant="secondary", visible=admin_logged_in)
-            upload_status = gr.Markdown(visible=admin_logged_in)
-            credentials_table = gr.DataFrame(visible=admin_logged_in)
-            full_credentials = gr.State(None)
-            show_passwords = gr.Checkbox(label="Show Passwords", value=False, visible=admin_logged_in)
+            with gr.Column(visible=not admin_logged_in) as login_col:
+                admin_username = gr.Textbox(label="Admin Username")
+                admin_password = gr.Textbox(label="Admin Password", type="password")
+                admin_login_btn = gr.Button("Login")
+                admin_auth_status = gr.Markdown()
+
+            with gr.Column(visible=admin_logged_in) as upload_col:
+                current_excel_label = gr.Textbox(label="Current Excel File", value=state.get("excel_file", "No file uploaded"), interactive=False)
+                current_account_ids_label = gr.Textbox(label="Current Account IDs File", value=state.get("account_ids_file", "No file uploaded"), interactive=False)
+                excel_file = gr.File(label="Excel File (.xlsx)", type="filepath")
+                account_ids_file = gr.File(label="Upload Account IDs (.txt)", type="filepath")
+                num_sets_input = gr.Number(label="Number of Sets", value=state.get("num_sets", 1), precision=0)
+                num_users_per_set_input = gr.Number(label="Number of Users per Set", value=state.get("num_users_per_set", 1), precision=0)
+                upload_btn = gr.Button("Upload", variant="primary")
+                logout_btn = gr.Button("Logout", variant="secondary")
+                reset_btn = gr.Button("Reset", variant="secondary")
+                upload_status = gr.Markdown()
+                credentials_table = gr.DataFrame()
+                show_passwords = gr.Checkbox(label="Show Passwords", value=False)
 
             admin_login_btn.click(
                 admin_login,
                 inputs=[admin_username, admin_password],
-                outputs=[
-                    admin_username, admin_password, admin_login_btn,
-                    current_excel_label, current_account_ids_label,
-                    num_sets_input, num_users_per_set_input,
-                    excel_file, account_ids_file, upload_btn, logout_btn, reset_btn,
-                    admin_auth_status
-                ]
+                outputs=[login_col, upload_col, current_excel_label, current_account_ids_label, num_sets_input, num_users_per_set_input, admin_auth_status]
             )
 
             logout_btn.click(
                 admin_logout,
-                outputs=[
-                    admin_username, admin_password, admin_login_btn,
-                    current_excel_label, current_account_ids_label,
-                    num_sets_input, num_users_per_set_input,
-                    excel_file, account_ids_file, upload_btn, logout_btn, reset_btn,
-                    admin_auth_status
-                ]
+                outputs=[login_col, upload_col, current_excel_label, current_account_ids_label, num_sets_input, num_users_per_set_input, admin_auth_status]
             )
 
             reset_btn.click(
                 admin_reset,
-                outputs=[
-                    admin_username, admin_password, admin_login_btn,
-                    current_excel_label, current_account_ids_label,
-                    num_sets_input, num_users_per_set_input,
-                    excel_file, account_ids_file, upload_btn, logout_btn, reset_btn,
-                    admin_auth_status
-                ]
+                outputs=[login_col, upload_col, current_excel_label, current_account_ids_label, num_sets_input, num_users_per_set_input, admin_auth_status]
             )
 
             upload_btn.click(
