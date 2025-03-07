@@ -28,20 +28,20 @@ def upload_excel(file, account_ids_file, password):
 
     account_ids = open(account_ids_file.name).read().splitlines()
     passwords = [secrets.token_urlsafe(8) for _ in account_ids]
-    credentials = pd.DataFrame({
+    credentials_hidden = pd.DataFrame({
         'account_id': account_ids,
-        'password': ['[Hidden]' for _ in account_ids]  # Initially hidden in display
+        'password': ['[Hidden]' for _ in account_ids]
     })
     credentials_full = pd.DataFrame({
         'account_id': account_ids,
-        'password': passwords  # Actual passwords stored separately
+        'password': passwords
     })
     credentials_full.to_csv(credentials_file, index=False)
 
-    return "**Files uploaded and credentials created successfully!**", credentials, credentials_full
+    return "**Files uploaded and credentials created successfully!**", credentials_hidden, credentials_full
 
-def reveal_passwords(hidden_df, full_df):
-    return full_df
+def toggle_passwords(show_passwords, hidden_df, full_df):
+    return full_df if show_passwords else hidden_df
 
 # User authentication
 def authenticate(account_id, password):
@@ -94,9 +94,9 @@ def main():
             upload_btn = gr.Button("Upload", variant="primary")
             upload_status = gr.Markdown()
             credentials_table = gr.DataFrame()
-            reveal_btn = gr.Button("Reveal Passwords", variant="secondary", visible=False)
-            hidden_credentials = gr.State(None)  # To store hidden version
-            full_credentials = gr.State(None)   # To store full version with passwords
+            show_passwords = gr.Checkbox(label="Show Passwords", value=False, visible=False)
+            hidden_credentials = gr.State(None)
+            full_credentials = gr.State(None)
 
             upload_btn.click(
                 upload_excel, 
@@ -104,16 +104,16 @@ def main():
                 [upload_status, credentials_table, full_credentials]
             ).then(
                 lambda: gr.update(visible=True),
-                outputs=[reveal_btn]
+                outputs=[show_passwords]
             ).then(
                 lambda df: df,
                 inputs=[credentials_table],
                 outputs=[hidden_credentials]
             )
 
-            reveal_btn.click(
-                reveal_passwords,
-                inputs=[hidden_credentials, full_credentials],
+            show_passwords.change(
+                toggle_passwords,
+                inputs=[show_passwords, hidden_credentials, full_credentials],
                 outputs=[credentials_table]
             )
 
