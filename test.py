@@ -1,68 +1,207 @@
-from llama_index import GPTSQLStructStoreIndex
-from llama_index.llms import OpenAI
-from sqlalchemy import create_engine, inspect
-from sqlalchemy.engine import Connection
+import gradio as gr
 import pandas as pd
+import os
+import secrets
+import argparse
 
-# Example for SQLite, but this can be any database engine with SQLAlchemy
-DATABASE_URL = "sqlite:///database.db"  # Change this to your database URL
-engine = create_engine(DATABASE_URL)
+# Global variables
+output_file = "tagged_results.csv"
+admin_password = "x"  # Change this to a secure password
+credentials_file = "user_credentials.csv"
+password_store = {}  # Store passwords in memory
 
-# Create a connection to the database
-conn = engine.connect()
+# Load dataset
+global news_data
+news_data = []
 
-# Example: Load a CSV into SQL (replace with your actual CSV file path)
-csv_file = "data.csv"
-df = pd.read_csv(csv_file)
+# Admin: Upload Excel and Account IDs
+def upload_excel(file, account_ids_file, password):
+    global news_data, password_store
+    if password != admin_password:
+        return "**Error:** Unauthorized - Incorrect password.", pd.DataFrame()
+    if file is None or account_ids_file is None:
+        return "**Error:** Please upload both Excel and Account IDs files.", pd.DataFrame()
+    
+    df = pd.read_excel(file.name)
+    if not {'URL', 'Company Name', 'Tag'}.issubset(df.columns):
+        return "**Error:** Excel file must contain 'URL', 'Company Name', and 'Tag'.", pd.DataFrame()
+    
+    df.to_csv(output_file, index=False)
+    news_data = df.to_dict(orient='records')
 
-# Load DataFrame into SQL table
-df.to_sql('data_table', conn, if_exists='replace', index=False)
+    account_ids = open(account_ids_file.name).read().splitlines()
+    
+    # Generate passwords and store them
+    passwords = [secrets.token_urlsafe(8) for _ in account_ids]
+    password_store = dict(zip(account_ids, passwords))
 
-# Create a custom wrapper for the SQLAlchemy connection
-class SQLAlchemyDatabase:
-    def __init__(self, connection: Connection):
-        self.connection = connection
-        self.inspector = inspect(connection)
+    credentials = pd.DataFrame({
+        'account_id': account_ids,
+        'password': passwords
+    })
+    credentials.to_csv(credentials_file, index=False)
 
-    def get_usable_table_names(self):
-        # Use SQLAlchemy's inspector to get table names
-        return self.inspector.get_table_names()
+    # Return account IDs but hide passwords
+    display_data = pd.DataFrame({'Account ID': account_ids, 'Password': ["🔒 Reveal" for _ in account_ids]})
+    
+    return "**Files uploaded successfully!**", display_data
 
-    def get_single_table_info(self, table_name: str):
-        # Fetch column information for the specified table using SQLAlchemy's inspector
-        return self.inspector.get_columns(table_name)
+# Function to reveal passwords
+def reveal_password(account_id):
+    if account_id in password_store:
+        return f"🔑 {password_store[account_id]}"
+    return "**Invalid Account ID**"
 
-    def query(self, query: str):
-        # Execute a query and return results using SQLAlchemy's method
-        result = self.connection.execute(query)
-        return result.fetchall()
+# User authentication
+def authenticate(account_id, password):
+    if not os.path.exists(credentials_file):
+        return False
+    credentials = pd.read_csv(credentials_file)
+    user = credentials[(credentials['account_id'] == account_id) & (credentials['password'] == password)]
+    return not user.empty
 
-# Wrap the SQLAlchemy connection using the custom wrapper
-sql_database = SQLAlchemyDatabase(conn)
+# Tagging news articles
+def tag_news(account_id, password, index, tag):
+    global news_data
+    if not authenticate(account_id, password):
+        return "**Authentication failed.**", "", "", -1
+    if index == -1 or not news_data:
+        return "**All records tagged.**", "", "", -1
+    if 0 <= index < len(news_data):
+        news_data[index]['Tag'] = tag
+        pd.DataFrame(news_data).to_csv(output_file, index=False)
+    if index + 1 < len(news_data):
+        next_url = news_data[index + 1]['URL']
+        embed_code = f'<iframe src="{next_url}" width="100%" height="500px"></iframe>'
+        return next_url, news_data[index + 1]['Company Name'], embed_code, index + 1
+    else:
+        return "**All records tagged.**", "", "", -1
 
-# Initialize OpenAI model (you can replace with LLaMA or other models)
-llm = OpenAI(model="gpt-4")
+# Show summary
+def show_summary(password):
+    if password != admin_password:
+        return gr.update(visible=False)
+    if not os.path.exists("tagged_results.csv"):
+        return gr.update(value=pd.DataFrame({"Error": ["No tagging data found."]}), visible=True)
+    df = pd.read_csv("tagged_results.csv")
+    yes_count = df[df['Tag'] == 'Yes'].shape[0]
+    no_count = df[df['Tag'] == 'No'].shape[0]
+    return gr.update(value=pd.DataFrame({"Tag": ["Yes", "No"], "Count": [yes_count, no_count]}), visible=True)
 
-# Create index with SQLAlchemy engine and LLM
-index = GPTSQLStructStoreIndex.from_documents([], sql_database=sql_database, llm=llm)
+# Gradio Interface
+def main():
+    parser = argparse.ArgumentParser(description="Gradio News Tagging App")
+    parser.add_argument("--port", type=int, default=7860)
+    parser.add_argument("--share", action="store_true")
+    args = parser.parse_args()
 
-# Perform a natural language SQL query
-query = "What is the average sales price in the dataset?"
-response = index.query(query)
+    with gr.Blocks() as app:
+        gr.Markdown("# News Tagging Application")
 
-print("Query Result:", response)
+        with gr.Tab("Upload File"):
+            admin_pwd = gr.Textbox(label="Admin Password", type="password")
+            excel_file = gr.File(label="Excel File (.xlsx)")
+            account_ids_file = gr.File(label="Upload Account IDs (.txt)")
+            upload_btn = gr.Button("Upload", variant="primary")
+            upload_status = gr.Markdown()
+            credentials_table = gr.DataFrame()
+            
+            upload_btn.click(
+                upload_excel, 
+                [excel_file, account_ids_file, admin_pwd],
+                [upload_status, credentials_table]
+            )
+            
+        with gr.Tab("Tag News"):
+            with gr.Row():
+                user_account_display = gr.Markdown(visible=False)
+                time_spent_display = gr.Markdown(visible=False)
+            auth_status = gr.Markdown()
+            user_id = gr.Textbox(label="Account ID")
+            user_pwd = gr.Textbox(label="User Password", type="password")
+            login_btn = gr.Button("Login", variant="primary")
+            url_display = gr.Markdown(visible=False)
+            company_display = gr.Textbox(label="Company Name", interactive=False, visible=False)
+            preview = gr.HTML(visible=False)
+            idx_input = gr.Number(label="Index", value=0, interactive=False, visible=False)
+            tag_input = gr.Radio(["Yes", "No"], label="Related?", visible=False)
+            tag_btn = gr.Button("Submit", interactive=False, visible=False, variant="primary")
 
+            def user_login(account_id, password):
+                global news_data
+                if authenticate(account_id, password):
+                    if news_data:
+                        news_url = news_data[0]['URL']
+                        company_name = news_data[0]['Company Name']
+                        embed_code = f'<iframe src="{news_url}" width="100%" height="500px"></iframe>'
+                        return ("**Authenticated ✅**", gr.update(visible=False), gr.update(visible=False), gr.update(value=news_url, visible=True), gr.update(value=company_name, visible=True), gr.update(value=embed_code, visible=True), gr.update(value=0, visible=True), gr.update(visible=True), gr.update(interactive=False, visible=True))
+                    else:
+                        return ("**No news data found.**", gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False))
+                else:
+                    return ("**Authentication failed.**", gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False))
+            
+            login_btn.click(
+                user_login, 
+                [user_id, user_pwd], 
+                [user_account_display, user_id, user_pwd, url_display, company_display, preview, idx_input, tag_input, tag_btn]
+            ).then(
+                lambda account_id: gr.update(value=f'**Logged in as:** {account_id}', visible=True),
+                inputs=[user_id],
+                outputs=[user_account_display]
+            ).then(
+                lambda _: gr.update(visible=True),
+                inputs=[user_id],
+                outputs=[time_spent_display]
+            ).then(
+                lambda _: gr.update(visible=False),
+                inputs=[user_id],
+                outputs=[login_btn]
+            ).then(
+                lambda account_id: gr.update(value=f'**Logged in as:** {account_id}', visible=True),
+                inputs=[user_id],
+                outputs=[user_account_display]
+            ).then(
+                lambda _: gr.update(visible=True),
+                inputs=[user_id],
+                outputs=[time_spent_display]
+            )
 
+            tag_input.change(
+                lambda choice: gr.update(interactive=True), 
+                inputs=[tag_input], 
+                outputs=[tag_btn]
+            )
 
-# Main workflow
-user_question = input("Enter your question: ")
-sql_query = generate_sql(user_question, schema_str)
+            tag_btn.click(
+                tag_news,
+                inputs=[user_id, user_pwd, idx_input, tag_input],
+                outputs=[url_display, company_display, preview, idx_input]
+            ).then(
+                lambda idx: gr.update(interactive=False) if idx == -1 else gr.update(interactive=True),
+                inputs=[idx_input],
+                outputs=[tag_btn]
+            )
 
-if not validate_sql(sql_query):
-    print(f"Invalid SQL: {sql_query}")
-else:
-    print(f"Generated SQL: {sql_query}")
-    results = execute_sql(sql_query)
-    print("Results:", results)
-# Close the connection when done
-conn.close()
+        with gr.Tab("Reveal Passwords"):
+            gr.Markdown("## Enter Account ID to Reveal Password")
+            account_id_input = gr.Textbox(label="Account ID")
+            reveal_btn = gr.Button("Reveal Password", variant="primary")
+            password_output = gr.Markdown()
+
+            reveal_btn.click(
+                reveal_password, 
+                [account_id_input], 
+                [password_output]
+            )
+        
+        with gr.Tab("Summary"):
+            summary_pwd = gr.Textbox(label="Admin Password", type="password")
+            summary_btn = gr.Button("Show Summary", variant="primary")
+            summary_output = gr.DataFrame(visible=False)
+
+            summary_btn.click(show_summary, [summary_pwd], summary_output)
+    
+    app.launch(share=args.share, server_port=args.port)
+
+if __name__ == "__main__":
+    main()
