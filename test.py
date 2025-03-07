@@ -7,8 +7,9 @@ import random
 
 # Global variables
 output_file = "tagged_results.csv"
-admin_password = "x"  # Change this to a secure password
+admin_password = "x"  # Change to a secure password
 credentials_file = "user_credentials.csv"
+progress_file = "user_progress.csv"  # New file to store user progress
 
 # Load dataset and assignment mappings
 global news_data, user_to_rows, sets, set_to_users
@@ -84,6 +85,10 @@ def upload_excel(file, account_ids_file, password, num_sets, num_users_per_set):
     credentials_full.to_csv(credentials_file, index=False)
     df.to_csv(output_file, index=False)
     
+    # Initialize user progress
+    progress_df = pd.DataFrame({'account_id': account_ids, 'current_idx': [0] * len(account_ids)})
+    progress_df.to_csv(progress_file, index=False)
+    
     return "**Files uploaded, sets assigned evenly, and credentials created successfully!**", credentials_hidden, credentials_full, gr.update(visible=True), gr.update(visible=True)
 
 def toggle_passwords(show_passwords, hidden_df, full_df):
@@ -97,39 +102,56 @@ def authenticate(account_id, password):
     user = credentials[(credentials['account_id'] == account_id) & (credentials['password'] == password)]
     return not user.empty
 
+# Load and save user progress
+def load_user_progress(account_id):
+    if not os.path.exists(progress_file):
+        return 0
+    progress_df = pd.read_csv(progress_file)
+    user_progress = progress_df[progress_df['account_id'] == account_id]
+    return user_progress['current_idx'].values[0] if not user_progress.empty else 0
+
+def save_user_progress(account_id, current_idx):
+    if not os.path.exists(progress_file):
+        return
+    progress_df = pd.read_csv(progress_file)
+    progress_df.loc[progress_df['account_id'] == account_id, 'current_idx'] = current_idx
+    progress_df.to_csv(progress_file, index=False)
+
 def user_login(account_id, password):
     global news_data
-    if authenticate(account_id, password):
-        assigned_rows = user_to_rows.get(account_id, [])
-        if not assigned_rows:
-            return ("**No rows assigned to this user.**", gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), 
-                    gr.update(visible=False), gr.update(visible=False), [], -1, gr.update(visible=False), gr.update(visible=False))
-        if news_data:
-            first_row_idx = assigned_rows[0]
-            news_url = news_data[first_row_idx]['URL']
-            company_name = news_data[first_row_idx]['Company Name']
-            embed_code = f'<iframe src="{news_url}" width="100%" height="500px"></iframe>'
-            return ("**Authenticated ✅**", gr.update(visible=False), gr.update(visible=False), gr.update(value=news_url, visible=True), 
-                    gr.update(value=company_name, visible=True), gr.update(value=embed_code, visible=True), assigned_rows, 0, 
-                    gr.update(visible=True), gr.update(interactive=False, visible=True))
-        else:
-            return ("**No news data found.**", gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), 
-                    gr.update(visible=False), gr.update(visible=False), [], -1, gr.update(visible=False), gr.update(visible=False))
-    else:
+    if not authenticate(account_id, password):
         return ("**Authentication failed.**", gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), 
-                gr.update(visible=False), gr.update(visible=False), [], -1, gr.update(visible=False), gr.update(visible=False))
+                gr.update(visible=False), gr.update(visible=False), [], -1, gr.update(visible=False), gr.update(visible=False), gr.update(visible=False))
+    assigned_rows = user_to_rows.get(account_id, [])
+    if not assigned_rows:
+        return ("**No rows assigned to this user.**", gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), 
+                gr.update(visible=False), gr.update(visible=False), [], -1, gr.update(visible=False), gr.update(visible=False), gr.update(visible=False))
+    current_idx = load_user_progress(account_id)
+    if current_idx < len(assigned_rows):
+        row_idx = assigned_rows[current_idx]
+        news_url = news_data[row_idx]['URL']
+        company_name = news_data[row_idx]['Company Name']
+        embed_code = f'<iframe src="{news_url}" width="100%" height="500px"></iframe>'
+        return ("**Authenticated ✅**", gr.update(visible=False), gr.update(visible=False), gr.update(value=news_url, visible=True), 
+                gr.update(value=company_name, visible=True), gr.update(value=embed_code, visible=True), assigned_rows, current_idx, 
+                gr.update(visible=True), gr.update(interactive=False, visible=True), gr.update(visible=True))
+    else:
+        return ("**All records tagged.**", gr.update(visible=False), gr.update(visible=False), gr.update(value="**All records tagged.**", visible=True), 
+                gr.update(visible=False), gr.update(visible=False), assigned_rows, current_idx, 
+                gr.update(visible=False), gr.update(visible=False), gr.update(visible=True))
 
 def submit_tag(account_id, password, user_assigned_rows, user_current_idx, tag):
     global news_data
     if not authenticate(account_id, password):
         return "**Authentication failed.**", "", "", user_current_idx
     if not user_assigned_rows or user_current_idx >= len(user_assigned_rows):
-        return "**All assigned records tagged.**", "", "", user_current_idx
+        return "**All records tagged.**", "", "", user_current_idx
     row_idx = user_assigned_rows[user_current_idx]
     if 0 <= row_idx < len(news_data):
         news_data[row_idx]['Tag'] = tag
         pd.DataFrame(news_data).to_csv(output_file, index=False)
     user_current_idx += 1
+    save_user_progress(account_id, user_current_idx)
     if user_current_idx < len(user_assigned_rows):
         next_row_idx = user_assigned_rows[user_current_idx]
         next_url = news_data[next_row_idx]['URL']
@@ -137,29 +159,27 @@ def submit_tag(account_id, password, user_assigned_rows, user_current_idx, tag):
         next_embed = f'<iframe src="{next_url}" width="100%" height="500px"></iframe>'
         return next_url, next_company, next_embed, user_current_idx
     else:
-        return "**All assigned records tagged.**", "", "", user_current_idx
+        return "**All records tagged.**", "", "", user_current_idx
+
+def logout_user(account_id, user_current_idx):
+    save_user_progress(account_id, user_current_idx)
+    return ("**Logged out successfully.**", gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), 
+            gr.update(visible=False), gr.update(visible=False), [], -1, gr.update(visible=False), gr.update(visible=False), gr.update(visible=False))
 
 def show_summary(password):
-    global news_data, user_to_rows, sets, set_to_users
     if password != admin_password:
         return gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)
     if not os.path.exists(output_file):
         return (gr.update(value=pd.DataFrame({"Error": ["No tagging data found."]}), visible=True), 
                 gr.update(visible=False), gr.update(visible=False))
-    
-    # Tag summary
     df = pd.read_csv(output_file)
-    df['Tag'] = df['Tag'].fillna('')  # Replace NaN with empty string
+    df['Tag'] = df['Tag'].fillna('')  # Handle NaN in Tag column
     yes_count = df[df['Tag'] == 'Yes'].shape[0]
     no_count = df[df['Tag'] == 'No'].shape[0]
     summary_df = pd.DataFrame({"Tag": ["Yes", "No"], "Count": [yes_count, no_count]})
-    
-    # Set assignment summary
     assignment_data = [{"Set Index": set_idx, "Number of Rows": len(sets[set_idx]), "Assigned Users": ", ".join(set_to_users[set_idx])} 
                       for set_idx in range(len(sets))]
     assignment_df = pd.DataFrame(assignment_data)
-    
-    # User tagging status
     status_data = []
     for user, rows in user_to_rows.items():
         total_rows = len(rows)
@@ -173,7 +193,6 @@ def show_summary(password):
             "Rows Remaining": remaining
         })
     status_df = pd.DataFrame(status_data)
-    
     return (gr.update(value=summary_df, visible=True), 
             gr.update(value=assignment_df, visible=True), 
             gr.update(value=status_df, visible=True))
@@ -232,11 +251,12 @@ def main():
             user_current_idx = gr.State()
             tag_input = gr.Radio(["Yes", "No"], label="Related?", visible=False)
             tag_btn = gr.Button("Submit", interactive=False, visible=False, variant="primary")
+            logout_btn = gr.Button("Logout", visible=False, variant="secondary")
 
             login_btn.click(
                 user_login,
                 [user_id, user_pwd],
-                [user_account_display, user_id, user_pwd, url_display, company_display, preview, user_assigned_rows, user_current_idx, tag_input, tag_btn]
+                [auth_status, user_id, user_pwd, url_display, company_display, preview, user_assigned_rows, user_current_idx, tag_input, tag_btn, logout_btn]
             ).then(
                 lambda account_id: gr.update(value=f'**Logged in as:** {account_id}', visible=True),
                 inputs=[user_id],
@@ -263,12 +283,18 @@ def main():
                 outputs=[tag_btn]
             )
 
+            logout_btn.click(
+                logout_user,
+                inputs=[user_id, user_current_idx],
+                outputs=[auth_status, user_id, user_pwd, url_display, company_display, preview, user_assigned_rows, user_current_idx, tag_input, tag_btn, logout_btn]
+            )
+
         with gr.Tab("Summary"):
             summary_pwd = gr.Textbox(label="Admin Password", type="password")
             summary_btn = gr.Button("Show Summary", variant="primary")
-            summary_output = gr.DataFrame(visible=False, label="Tag Summary")
-            assignment_summary = gr.DataFrame(visible=False, label="Set Assignments")
-            tagging_status = gr.DataFrame(visible=False, label="User Tagging Status")
+            summary_output = gr.DataFrame(visible=False)
+            assignment_summary = gr.DataFrame(visible=False)
+            tagging_status = gr.DataFrame(visible=False)
 
             summary_btn.click(
                 show_summary,
