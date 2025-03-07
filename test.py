@@ -1,14 +1,13 @@
+import argparse
 import gradio as gr
 import pandas as pd
 import os
 import secrets
-import argparse
 
 # Global variables
 output_file = "tagged_results.csv"
 admin_password = "x"  # Change this to a secure password
 credentials_file = "user_credentials.csv"
-password_store = {}  # Store passwords in memory
 
 # Load dataset
 global news_data
@@ -16,41 +15,33 @@ news_data = []
 
 # Admin: Upload Excel and Account IDs
 def upload_excel(file, account_ids_file, password):
-    global news_data, password_store
+    global news_data
     if password != admin_password:
-        return "**Error:** Unauthorized - Incorrect password.", pd.DataFrame()
+        return "**Error:** Unauthorized - Incorrect password.", None, None
     if file is None or account_ids_file is None:
-        return "**Error:** Please upload both Excel and Account IDs files.", pd.DataFrame()
-    
+        return "**Error:** Please upload both Excel and Account IDs files.", None, None
     df = pd.read_excel(file.name)
     if not {'URL', 'Company Name', 'Tag'}.issubset(df.columns):
-        return "**Error:** Excel file must contain 'URL', 'Company Name', and 'Tag'.", pd.DataFrame()
-    
-    df.to_csv(output_file, index=False)
+        return "**Error:** Excel file must contain 'URL', 'Company Name', and 'Tag'.", None, None
+    df.to_csv("tagged_results.csv", index=False)
     news_data = df.to_dict(orient='records')
 
     account_ids = open(account_ids_file.name).read().splitlines()
-    
-    # Generate passwords and store them
     passwords = [secrets.token_urlsafe(8) for _ in account_ids]
-    password_store = dict(zip(account_ids, passwords))
-
     credentials = pd.DataFrame({
         'account_id': account_ids,
-        'password': passwords
+        'password': ['[Hidden]' for _ in account_ids]  # Initially hidden in display
     })
-    credentials.to_csv(credentials_file, index=False)
+    credentials_full = pd.DataFrame({
+        'account_id': account_ids,
+        'password': passwords  # Actual passwords stored separately
+    })
+    credentials_full.to_csv(credentials_file, index=False)
 
-    # Return account IDs but hide passwords
-    display_data = pd.DataFrame({'Account ID': account_ids, 'Password': ["🔒 Reveal" for _ in account_ids]})
-    
-    return "**Files uploaded successfully!**", display_data
+    return "**Files uploaded and credentials created successfully!**", credentials, credentials_full
 
-# Function to reveal passwords
-def reveal_password(account_id):
-    if account_id in password_store:
-        return f"🔑 {password_store[account_id]}"
-    return "**Invalid Account ID**"
+def reveal_passwords(hidden_df, full_df):
+    return full_df
 
 # User authentication
 def authenticate(account_id, password):
@@ -60,7 +51,6 @@ def authenticate(account_id, password):
     user = credentials[(credentials['account_id'] == account_id) & (credentials['password'] == password)]
     return not user.empty
 
-# Tagging news articles
 def tag_news(account_id, password, index, tag):
     global news_data
     if not authenticate(account_id, password):
@@ -77,7 +67,6 @@ def tag_news(account_id, password, index, tag):
     else:
         return "**All records tagged.**", "", "", -1
 
-# Show summary
 def show_summary(password):
     if password != admin_password:
         return gr.update(visible=False)
@@ -88,14 +77,14 @@ def show_summary(password):
     no_count = df[df['Tag'] == 'No'].shape[0]
     return gr.update(value=pd.DataFrame({"Tag": ["Yes", "No"], "Count": [yes_count, no_count]}), visible=True)
 
-# Gradio Interface
+# Main app
 def main():
     parser = argparse.ArgumentParser(description="Gradio News Tagging App")
     parser.add_argument("--port", type=int, default=7860)
     parser.add_argument("--share", action="store_true")
     args = parser.parse_args()
 
-    with gr.Blocks() as app:
+    with gr.Blocks(theme=gr.themes.Ocean()) as app:
         gr.Markdown("# News Tagging Application")
 
         with gr.Tab("Upload File"):
@@ -105,13 +94,29 @@ def main():
             upload_btn = gr.Button("Upload", variant="primary")
             upload_status = gr.Markdown()
             credentials_table = gr.DataFrame()
-            
+            reveal_btn = gr.Button("Reveal Passwords", variant="secondary", visible=False)
+            hidden_credentials = gr.State(None)  # To store hidden version
+            full_credentials = gr.State(None)   # To store full version with passwords
+
             upload_btn.click(
                 upload_excel, 
                 [excel_file, account_ids_file, admin_pwd],
-                [upload_status, credentials_table]
+                [upload_status, credentials_table, full_credentials]
+            ).then(
+                lambda: gr.update(visible=True),
+                outputs=[reveal_btn]
+            ).then(
+                lambda df: df,
+                inputs=[credentials_table],
+                outputs=[hidden_credentials]
             )
-            
+
+            reveal_btn.click(
+                reveal_passwords,
+                inputs=[hidden_credentials, full_credentials],
+                outputs=[credentials_table]
+            )
+
         with gr.Tab("Tag News"):
             with gr.Row():
                 user_account_display = gr.Markdown(visible=False)
@@ -149,21 +154,9 @@ def main():
                 inputs=[user_id],
                 outputs=[user_account_display]
             ).then(
-                lambda _: gr.update(visible=True),
-                inputs=[user_id],
-                outputs=[time_spent_display]
-            ).then(
                 lambda _: gr.update(visible=False),
                 inputs=[user_id],
                 outputs=[login_btn]
-            ).then(
-                lambda account_id: gr.update(value=f'**Logged in as:** {account_id}', visible=True),
-                inputs=[user_id],
-                outputs=[user_account_display]
-            ).then(
-                lambda _: gr.update(visible=True),
-                inputs=[user_id],
-                outputs=[time_spent_display]
             )
 
             tag_input.change(
@@ -182,25 +175,13 @@ def main():
                 outputs=[tag_btn]
             )
 
-        with gr.Tab("Reveal Passwords"):
-            gr.Markdown("## Enter Account ID to Reveal Password")
-            account_id_input = gr.Textbox(label="Account ID")
-            reveal_btn = gr.Button("Reveal Password", variant="primary")
-            password_output = gr.Markdown()
-
-            reveal_btn.click(
-                reveal_password, 
-                [account_id_input], 
-                [password_output]
-            )
-        
         with gr.Tab("Summary"):
             summary_pwd = gr.Textbox(label="Admin Password", type="password")
             summary_btn = gr.Button("Show Summary", variant="primary")
             summary_output = gr.DataFrame(visible=False)
 
             summary_btn.click(show_summary, [summary_pwd], summary_output)
-    
+
     app.launch(share=args.share, server_port=args.port)
 
 if __name__ == "__main__":
