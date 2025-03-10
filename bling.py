@@ -1,17 +1,24 @@
+# This script generates text files from an Excel file and serves them via a Flask app.
+# It uses Serveo to expose the local Flask server to the internet via an SSH tunnel.
+# Prerequisites:
+# - SSH client installed on Windows (enable via Settings > Apps > Optional Features > OpenSSH Client)
+# - Python libraries: pandas, flask, openpyxl (install via pip)
+
 import pandas as pd
 import os
 import re
 from flask import Flask, send_from_directory
-from pyngrok import ngrok
+import subprocess
+import threading
 import socket
 
 # Function to create text files from Excel
 def create_text_files_from_excel(excel_file, output_folder="output_files"):
     """
     Reads an Excel file and creates separate text files for each row based on the 'Body' column.
-    Files are written into a specified output folder, named by concatenating 'ArticleID', 'Company', 
-    and 'Date' with underscores. For 'Company', spaces are replaced with underscores before removing 
-    special characters (except _ and -). Filenames are converted to lowercase. If 'Body' is empty, 
+    Files are written into a specified output folder, named by concatenating 'ArticleID', 'Company',
+    and 'Date' with underscores. For 'Company', spaces are replaced with underscores before removing
+    special characters (except _ and -). Filenames are converted to lowercase. If 'Body' is empty,
     a specific message is written to the file.
 
     Parameters:
@@ -91,6 +98,14 @@ def create_text_files_from_excel(excel_file, output_folder="output_files"):
 app = Flask(__name__)
 output_folder = "output_files"  # Must match the output folder used above
 
+# Route to list all files
+@app.route('/')
+def index():
+    """Display a list of all generated files with links."""
+    files = [f for f in os.listdir(output_folder) if f.endswith('.txt')]
+    links = ''.join([f'<li><a href="/files/{f}">{f}</a></li>' for f in files])
+    return f'<h1>Generated Files</h1><ul>{links}</ul>'
+
 # Route to serve individual files
 @app.route('/files/<filename>')
 def serve_file(filename):
@@ -100,38 +115,54 @@ def serve_file(filename):
     except Exception as e:
         return f"Error: {e}", 404
 
-# Route for the index page
-@app.route('/')
-def index():
-    """Display a list of all generated files with links."""
-    files = [f for f in os.listdir(output_folder) if f.endswith('.txt')]
-    links = ''.join([f'<li><a href="/files/{f}">{f}</a></li>' for f in files])
-    return f'<h1>Generated Files</h1><ul>{links}</ul>'
+# Function to run the SSH tunnel for Serveo
+def run_serveo_tunnel():
+    """Run SSH tunnel to Serveo and capture the public URL."""
+    try:
+        # Start SSH tunnel to Serveo
+        ssh_process = subprocess.Popen(
+            ["ssh", "-o", "StrictHostKeyChecking=no", "-N", "-R", "80:localhost:5000", "serveo.net"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+
+        # Read SSH output to find the public URL
+        for line in ssh_process.stdout:
+            if "Forwarding HTTP traffic from" in line:
+                public_url = line.split()[-1]
+                print(f"Public URL: {public_url}")
+                break
+    except Exception as e:
+        print(f"Error starting Serveo tunnel: {e}")
 
 # Main execution
 if __name__ == "__main__":
     excel_file = 'your_excel_file.xlsx'  # Replace with your actual Excel filename
     output_folder = 'output_files'
     filenames = create_text_files_from_excel(excel_file, output_folder)
+    
     if filenames:
         try:
-            # Start ngrok for public access
-            public_url = ngrok.connect(5000).public_url
-            # Get local IP for local network access
+            # Start the Serveo tunnel in a separate thread
+            serveo_thread = threading.Thread(target=run_serveo_tunnel, daemon=True)
+            serveo_thread.start()
+
+            # Get local IP for local URL
             local_ip = socket.gethostbyname(socket.gethostname())
             local_url = f"http://{local_ip}:5000"
-            print(f"Files generated successfully.")
-            print(f"Access the index page at:")
+
+            # Display URLs
+            print("Files generated successfully.")
+            print("Access the index page at:")
             print(f"  Local URL: {local_url}")
-            print(f"  Public URL (via ngrok): {public_url}")
+            print("  Public URL will be displayed above when available.")
             print("The index page lists all generated files with links.")
-            print("Press Ctrl+C to stop the server.")
-            # Optional: Uncomment to open the local URL in the default browser
-            # import webbrowser
-            # webbrowser.open(local_url)
-            # Run the Flask app
+
+            # Run Flask app
             app.run(host='0.0.0.0', port=5000)
+
         except Exception as e:
             print(f"Error: {e}")
     else:
-        print("No files generated.")
+        print("No files were generated.")
