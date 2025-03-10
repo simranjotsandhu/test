@@ -1,107 +1,122 @@
+# Import necessary libraries
 import pandas as pd
 import os
 import re
+from flask import Flask, send_from_directory
+from pyngrok import ngrok
+import threading
 from IPython.display import display, HTML
 
+# Define the function to create text files from Excel
 def create_text_files_from_excel(excel_file, output_folder="output_files"):
-    """
-    Reads an Excel file and creates separate text files for each row based on the 'Body' column.
-    Files are written into a specified output folder, named by concatenating 'ArticleID', 'Company', 
-    and 'Date' with underscores. For 'Company', spaces are replaced with underscores before removing 
-    special characters (except _ and -). Filenames are converted to lowercase. If 'Body' is empty, 
-    a specific message is written to the file. After generation, clickable links are displayed in the 
-    notebook to access each file via JupyterHub's /files/ endpoint.
+    """Generate text files from an Excel file based on 'ArticleID', 'Company', 'Date', and 'Body' columns."""
+    # Check if the Excel file exists
+    if not os.path.exists(excel_file):
+        print(f"Error: '{excel_file}' not found.")
+        return []
 
-    Parameters:
-        excel_file (str): Name of the Excel file in the same directory as this script.
-        output_folder (str): Name or path of the folder where files will be saved (default: 'output_files').
-    """
-    # Step 1: Create the output folder if it doesn’t exist
-    try:
-        os.makedirs(output_folder, exist_ok=True)
-        print(f"Output folder '{output_folder}' is ready at {os.path.abspath(output_folder)}")
-    except Exception as e:
-        print(f"Error creating output folder '{output_folder}': {e}")
-        return
+    # Create output folder if it doesn't exist
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+        print(f"Created output folder: {output_folder}")
 
-    # Step 2: Read the Excel file into a DataFrame
+    # Read the Excel file
     try:
         df = pd.read_excel(excel_file)
-    except FileNotFoundError:
-        print(f"Error: The file '{excel_file}' was not found.")
-        return
     except Exception as e:
         print(f"Error reading Excel file: {e}")
-        return
+        return []
 
-    # Step 3: Verify required columns exist
-    required_columns = ['ArticleID', 'Company', 'Date', 'Body']
-    missing_columns = [col for col in required_columns if col not in df.columns]
-    if missing_columns:
-        print(f"Error: Missing required columns: {missing_columns}")
-        return
+    # List to store generated filenames
+    filenames = []
 
-    # Step 4: Process each row
-    filenames = []  # To store relative paths of generated files
+    # Process each row in the DataFrame
     for index, row in df.iterrows():
-        article_id_str = str(row['ArticleID'])
-        company_str = str(row['Company'])
-        
         try:
-            date_part = pd.to_datetime(row['Date']).strftime('%Y-%m-%d')
-        except (ValueError, TypeError):
-            print(f"Error: Invalid date format in row {index}. Skipping this row.")
+            # Extract required columns
+            article_id = str(row['ArticleID']).strip()
+            company = str(row['Company']).strip()
+            date = pd.to_datetime(row['Date']).strftime('%Y%m%d')  # Format date as YYYYMMDD
+            body = str(row['Body']).strip() if pd.notna(row['Body']) else ""
+
+            # Construct the filename
+            # Replace invalid filename characters with underscores
+            company_cleaned = re.sub(r'[<>:"/\\|?*]', '_', company)
+            filename = f"{article_id}_{company_cleaned}_{date}.txt"
+            file_path = os.path.join(output_folder, filename)
+
+            # Write to the text file
+            with open(file_path, 'w', encoding='utf-8') as f:
+                if body and body.lower() != 'nan':
+                    f.write(body)
+                else:
+                    f.write("No body content available for this article.")
+            
+            filenames.append(file_path)
+            print(f"Generated file: {filename}")
+        except Exception as e:
+            print(f"Error processing row {index}: {e}")
             continue
 
-        # Clean the components
-        company_with_underscores = company_str.replace(' ', '_')
-        company_cleaned = re.sub(r'[^a-zA-Z0-9_-]', '', company_with_underscores).lower()
-        article_id_cleaned = re.sub(r'[^a-zA-Z0-9_-]', '', article_id_str).lower()
-        date_cleaned = re.sub(r'[^a-zA-Z0-9_-]', '', date_part).lower()
+    if not filenames:
+        print("No files were generated due to errors or empty data.")
+    return filenames
 
-        # Construct the filename
-        filename = os.path.join(output_folder, f"{article_id_cleaned}_{company_cleaned}_{date_cleaned}.txt")
-        
-        # Determine the content
-        body = row['Body']
-        if pd.isna(body) or (isinstance(body, str) and body.strip() == ''):
-            content = "This space is intentionally left blank, please tag using the Title information."
-        else:
-            content = str(body)
+# Initialize the Flask app
+app = Flask(__name__)
+output_folder = "output_files"  # Must match the output folder used above
 
-        # Write the content to a text file
-        try:
-            with open(filename, 'w', encoding='utf-8') as f:
-                f.write(content)
-            print(f"Created file: {filename}")
-            relative_path = os.path.relpath(filename, os.getcwd())
-            filenames.append(relative_path)
-        except Exception as e:
-            print(f"Error writing file '{filename}': {e}")
+# Define Flask route to serve files
+@app.route('/files/<filename>')
+def serve_file(filename):
+    """Serve a file from the output folder."""
+    try:
+        return send_from_directory(output_folder, filename)
+    except Exception as e:
+        return f"Error: {e}", 404
 
-    # Step 5: Display clickable links
+# Function to run the Flask app
+def run_flask():
+    """Run the Flask app on port 5000."""
+    app.run(host='0.0.0.0', port=5000)
+
+# Main execution
+def main():
+    # Specify your Excel file here
+    excel_file = 'your_excel_file.xlsx'  # Replace with your actual Excel filename
+
+    # Generate text files
+    filenames = create_text_files_from_excel(excel_file, output_folder)
+
     if filenames:
-        links = ''.join([
-            f'<li><a href="/files/{filename}" target="_blank">{os.path.basename(filename)}</a></li>'
-            for filename in filenames
-        ])
-        html_output = (
-            '<p>The following files have been generated and can be accessed by clicking the links below '
-            '(opens in a new tab):</p><ul>{}</ul>'.format(links)
-        )
-        display(HTML(html_output))
+        # Start the Flask app in a separate thread
+        print("Starting Flask app in the background...")
+        flask_thread = threading.Thread(target=run_flask, daemon=True)
+        flask_thread.start()
+
+        # Start ngrok to expose the Flask app
+        try:
+            # Connect ngrok to port 5000
+            public_url = ngrok.connect(5000, bind_tls=True).public_url
+            print(f"ngrok tunnel started: {public_url}")
+
+            # Generate clickable links using the ngrok public URL
+            links = ''.join([
+                f'<li><a href="{public_url}/files/{os.path.basename(filename)}" target="_blank">{os.path.basename(filename)}</a></li>'
+                for filename in filenames
+            ])
+            html_output = (
+                '<p>Files can be accessed via the following links (opens in a new tab):</p>'
+                '<ul>{}</ul>'.format(links)
+            )
+
+            # Display the links in the Jupyter notebook
+            display(HTML(html_output))
+            print("Links to files are displayed above. Click them to access the files via the ngrok URL.")
+        except Exception as e:
+            print(f"Error starting ngrok: {e}")
     else:
-        print("No files were generated.")
+        print("No links to display because no files were generated.")
 
-# Example usage
-excel_file = 'your_excel_file.xlsx'  # Replace with your actual Excel filename
-if not os.path.exists(excel_file):
-    print(f"Error: '{excel_file}' not found in the current directory: {os.getcwd()}")
-else:
-    create_text_files_from_excel(excel_file, 'output_files')
-
-# Public server endpoint for accessing files:
-# After running this script, the generated files can be accessed via:
-# https://<your-jupyterhub-domain>/user/<your-username>/files/output_files/<filename>.txt
-# Example: https://example.com/user/johndoe/files/output_files/001_abc_corp_2023-10-01.txt
-# Replace <your-jupyterhub-domain> and <your-username> with your actual JupyterHub domain and username.
+if __name__ == "__main__":
+    main()
