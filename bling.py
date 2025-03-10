@@ -1,17 +1,19 @@
 import pandas as pd
 import os
+import re
 
 def create_text_files_from_excel(excel_file, output_folder="output_files"):
     """
     Reads an Excel file and creates separate text files for each row based on the 'Body' column.
     Files are written into a specified output folder, named by concatenating 'ArticleID', 'Company', 
-    and 'Date' with underscores. If 'Body' is empty, a specific message is written to the file.
+    and 'Date' with underscores. Special characters (except _ and -) are removed, and filenames are 
+    converted to lowercase. If 'Body' is empty, a specific message is written to the file.
     
     Parameters:
         excel_file (str): Path to the Excel file to process.
         output_folder (str): Name or path of the folder where files will be saved (default: 'output_files').
     """
-    # Step 1: Create the output folder if it doesn't exist
+    # Step 1: Create the output folder if it doesn’t exist
     try:
         os.makedirs(output_folder, exist_ok=True)
         print(f"Output folder '{output_folder}' is ready.")
@@ -41,7 +43,6 @@ def create_text_files_from_excel(excel_file, output_folder="output_files"):
         # Extract and process the columns for the filename
         article_id_str = str(row['ArticleID'])  # Convert ArticleID to string
         company_str = str(row['Company'])       # Convert Company to string
-        company_processed = company_str.replace(' ', '_')  # Replace spaces with underscores
         
         # Process the Date to extract YYYY-MM-DD
         try:
@@ -50,8 +51,17 @@ def create_text_files_from_excel(excel_file, output_folder="output_files"):
             print(f"Error: Invalid date format in row {index}. Skipping this row.")
             continue
 
+        # Remove all special characters except underscore and hyphen, then convert to lowercase
+        # Use regex to keep only alphanumeric characters, underscores, and hyphens
+        article_id_cleaned = re.sub(r'[^a-zA-Z0-9_-]', '', article_id_str).lower()
+        company_cleaned = re.sub(r'[^a-zA-Z0-9_-]', '', company_str).lower()
+        date_cleaned = re.sub(r'[^a-zA-Z0-9_-]', '', date_part).lower()  # Date already has hyphens
+
+        # Replace spaces in company with underscores (after cleaning special chars)
+        company_processed = company_cleaned.replace(' ', '_')
+
         # Construct the filename with the output folder path
-        filename = os.path.join(output_folder, f"{article_id_str}_{company_processed}_{date_part}.txt")
+        filename = os.path.join(output_folder, f"{article_id_cleaned}_{company_processed}_{date_cleaned}.txt")
 
         # Determine the content based on the Body column
         body = row['Body']
