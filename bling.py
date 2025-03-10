@@ -6,8 +6,9 @@ def create_text_files_from_excel(excel_file, output_folder="output_files"):
     """
     Reads an Excel file and creates separate text files for each row based on the 'Body' column.
     Files are written into a specified output folder, named by concatenating 'ArticleID', 'Company', 
-    and 'Date' with underscores. Special characters (except _ and -) are removed, and filenames are 
-    converted to lowercase. If 'Body' is empty, a specific message is written to the file.
+    and 'Date' with underscores. For 'Company', spaces are replaced with underscores before removing 
+    special characters (except _ and -). Filenames are converted to lowercase. If 'Body' is empty, 
+    a specific message is written to the file.
     
     Parameters:
         excel_file (str): Path to the Excel file to process.
@@ -51,17 +52,17 @@ def create_text_files_from_excel(excel_file, output_folder="output_files"):
             print(f"Error: Invalid date format in row {index}. Skipping this row.")
             continue
 
-        # Remove all special characters except underscore and hyphen, then convert to lowercase
-        # Use regex to keep only alphanumeric characters, underscores, and hyphens
+        # Clean the components:
+        # - For Company: Replace spaces with underscores FIRST, then remove special characters
+        company_with_underscores = company_str.replace(' ', '_')
+        company_cleaned = re.sub(r'[^a-zA-Z0-9_-]', '', company_with_underscores).lower()
+        
+        # - For ArticleID and Date: Remove special characters (except _ and -) and convert to lowercase
         article_id_cleaned = re.sub(r'[^a-zA-Z0-9_-]', '', article_id_str).lower()
-        company_cleaned = re.sub(r'[^a-zA-Z0-9_-]', '', company_str).lower()
         date_cleaned = re.sub(r'[^a-zA-Z0-9_-]', '', date_part).lower()  # Date already has hyphens
 
-        # Replace spaces in company with underscores (after cleaning special chars)
-        company_processed = company_cleaned.replace(' ', '_')
-
         # Construct the filename with the output folder path
-        filename = os.path.join(output_folder, f"{article_id_cleaned}_{company_processed}_{date_cleaned}.txt")
+        filename = os.path.join(output_folder, f"{article_id_cleaned}_{company_cleaned}_{date_cleaned}.txt")
 
         # Determine the content based on the Body column
         body = row['Body']
