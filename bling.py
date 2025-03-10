@@ -19,7 +19,7 @@ def create_text_files_from_excel(excel_file, output_folder="output_files"):
     # Step 1: Create the output folder if it doesn’t exist
     try:
         os.makedirs(output_folder, exist_ok=True)
-        print(f"Output folder '{output_folder}' is ready.")
+        print(f"Output folder '{output_folder}' is ready at {os.path.abspath(output_folder)}")
     except Exception as e:
         print(f"Error creating output folder '{output_folder}': {e}")
         return
@@ -44,50 +44,43 @@ def create_text_files_from_excel(excel_file, output_folder="output_files"):
     # Step 4: Process each row
     filenames = []  # To store relative paths of generated files
     for index, row in df.iterrows():
-        # Extract and process the columns for the filename
-        article_id_str = str(row['ArticleID'])  # Convert ArticleID to string
-        company_str = str(row['Company'])       # Convert Company to string
+        article_id_str = str(row['ArticleID'])
+        company_str = str(row['Company'])
         
-        # Process the Date to extract YYYY-MM-DD
         try:
             date_part = pd.to_datetime(row['Date']).strftime('%Y-%m-%d')
         except (ValueError, TypeError):
             print(f"Error: Invalid date format in row {index}. Skipping this row.")
             continue
 
-        # Clean the components:
-        # For Company: Replace spaces with underscores FIRST, then remove special characters
+        # Clean the components
         company_with_underscores = company_str.replace(' ', '_')
         company_cleaned = re.sub(r'[^a-zA-Z0-9_-]', '', company_with_underscores).lower()
-        
-        # For ArticleID and Date: Remove special characters (except _ and -) and convert to lowercase
         article_id_cleaned = re.sub(r'[^a-zA-Z0-9_-]', '', article_id_str).lower()
-        date_cleaned = re.sub(r'[^a-zA-Z0-9_-]', '', date_part).lower()  # Date already has hyphens
+        date_cleaned = re.sub(r'[^a-zA-Z0-9_-]', '', date_part).lower()
 
-        # Construct the filename with the output folder path
+        # Construct the filename
         filename = os.path.join(output_folder, f"{article_id_cleaned}_{company_cleaned}_{date_cleaned}.txt")
         
-        # Determine the content based on the Body column
+        # Determine the content
         body = row['Body']
         if pd.isna(body) or (isinstance(body, str) and body.strip() == ''):
             content = "This space is intentionally left blank, please tag using the Title information."
         else:
-            content = str(body)  # Ensure content is a string, preserving original text
+            content = str(body)
 
-        # Step 5: Write the content to a text file
+        # Write the content to a text file
         try:
             with open(filename, 'w', encoding='utf-8') as f:
                 f.write(content)
             print(f"Created file: {filename}")
-            # Get the relative path from the current working directory for the /files/ endpoint
             relative_path = os.path.relpath(filename, os.getcwd())
             filenames.append(relative_path)
         except Exception as e:
             print(f"Error writing file '{filename}': {e}")
 
-    # Step 6: Display clickable links to the generated files using /files/ endpoint
+    # Step 5: Display clickable links
     if filenames:
-        # Generate HTML list of links
         links = ''.join([
             f'<li><a href="/files/{filename}" target="_blank">{os.path.basename(filename)}</a></li>'
             for filename in filenames
@@ -101,19 +94,14 @@ def create_text_files_from_excel(excel_file, output_folder="output_files"):
         print("No files were generated.")
 
 # Example usage
-if __name__ == "__main__":
-    # Assuming the Excel file is in the same directory as this script
-    excel_file = 'your_excel_file.xlsx'  # Replace with your actual Excel filename
-    if not os.path.exists(excel_file):
-        print(f"Error: '{excel_file}' not found in the current directory.")
-    else:
-        create_text_files_from_excel(excel_file, 'output_files')
+excel_file = 'your_excel_file.xlsx'  # Replace with your actual Excel filename
+if not os.path.exists(excel_file):
+    print(f"Error: '{excel_file}' not found in the current directory: {os.getcwd()}")
+else:
+    create_text_files_from_excel(excel_file, 'output_files')
 
 # Public server endpoint for accessing files:
-# After running this script, the generated files can be accessed via the following URLs:
+# After running this script, the generated files can be accessed via:
 # https://<your-jupyterhub-domain>/user/<your-username>/files/output_files/<filename>.txt
-# For example, if your JupyterHub is at https://example.com and your username is 'user', then:
-# https://example.com/user/user/files/output_files/001_abc_corp_2023-10-01.txt
-# The links displayed in the notebook use relative paths (/files/output_files/<filename>.txt) and
-# will work when clicked from within the notebook, opening the file contents in a new browser tab.
-# To share these files publicly, construct the full URL using your JupyterHub domain and username.
+# Example: https://example.com/user/johndoe/files/output_files/001_abc_corp_2023-10-01.txt
+# Replace <your-jupyterhub-domain> and <your-username> with your actual JupyterHub domain and username.
