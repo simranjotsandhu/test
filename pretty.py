@@ -34,22 +34,22 @@ def prettify_string(input_string):
 
 # Test cases
 if __name__ == "__main__":
-    # Test 1: String with non-English characters
-    mixed_string = "Hello,世界! café 123 ümlaut"
-    print(f"Mixed string: '{prettify_string(mixed_string)}'")
+    test_cases = [
+        ("Hello,世界! café 123 ümlaut", "Mixed string with non-English chars"),
+        ("Hello, world! How are you? 42", "English-only string"),
+        ("This   is...   a   test!!!   ¿qué?", "Messy string with extra spaces"),
+        ("", "Empty string"),
+        ("Привет, hello! @#$%^&*() 日本語", "Complex string with multiple scripts"),
+        (None, "None input"),
+        ("123-456-7890", "Numbers with hyphens"),
+        ("What's up?!!", "String with punctuation"),
+        ("café au lait, s'il vous plaît", "String with French accents"),
+    ]
 
-    # Test 2: String with only English characters and symbols
-    english_string = "Hello, world! How are you? 42"
-    print(f"English string: '{prettify_string(english_string)}'")
-
-    # Test 3: String with multiple spaces and odd punctuation
-    messy_string = "This   is...   a   test!!!   ¿qué?"
-    print(f"Messy string: '{prettify_string(messy_string)}'")
-
-    # Test 4: Empty string
-    empty_string = ""
-    print(f"Empty string: '{prettify_string(empty_string)}'")
-
-    # Test 5: String with non-Latin script and symbols
-    complex_string = "Привет, hello! @#$%^&*() 日本語"
-    print(f"Complex string: '{prettify_string(complex_string)}'")
+    for input_str, desc in test_cases:
+        result = prettify_string(input_str)
+        print(f"{desc}:")
+        print(f"  Input:  '{input_str}'")
+        print(f"  Output: '{result}'")
+        print(f"  Length: {len(result)}")
+        print()
