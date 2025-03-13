@@ -1,23 +1,25 @@
 import pandas as pd
 import sys
 
-def merge_excel_sheets(input_files, output_file):
+def merge_excel_sheets(input_files, key_columns, output_file):
     """
-    Merge four Excel files based on columns A, B, and C, combining conflicting values in other columns.
+    Merge four Excel files based on user-specified key columns, combining conflicting values in other columns.
     
     Parameters:
     input_files (list): List of four input Excel file paths.
+    key_columns (list): List of column names to use for merging (provided by user).
     output_file (str): Path for the output Excel file.
     """
     try:
-        # Step 1: Read all input Excel files and validate presence of columns A, B, C
+        # Step 1: Read all input Excel files and validate presence of key columns
         dfs = []
         for file in input_files:
             print(f"Reading {file}")
             df = pd.read_excel(file)
-            # Check if required columns exist
-            if not all(col in df.columns for col in ['A', 'B', 'C']):
-                print(f"Error: File {file} does not have columns A, B, and C")
+            # Check if all key columns are present in the file
+            missing_cols = [col for col in key_columns if col not in df.columns]
+            if missing_cols:
+                print(f"Error: File {file} is missing columns: {', '.join(missing_cols)}")
                 sys.exit(1)
             dfs.append(df)
         
@@ -35,12 +37,12 @@ def merge_excel_sheets(input_files, output_file):
             else:
                 return ', '.join(s.astype(str).unique())
         
-        # Step 4: Group by A, B, C and aggregate other columns
-        print("Merging rows based on columns A, B, C")
+        # Step 4: Group by key columns and aggregate other columns
+        print(f"Merging rows based on columns: {', '.join(key_columns)}")
         # Define aggregation: 'first' for key columns, combine_unique for others
-        agg_dict = {col: 'first' if col in ['A', 'B', 'C'] else combine_unique 
-                   for col in combined_df.columns}
-        merged_df = combined_df.groupby(['A', 'B', 'C'], as_index=False).agg(agg_dict)
+        agg_dict = {col: 'first' if col in key_columns else combine_unique 
+                    for col in combined_df.columns}
+        merged_df = combined_df.groupby(key_columns, as_index=False, dropna=False).agg(agg_dict)
         print(f"Merged shape: {merged_df.shape}")
         
         # Step 5: Write the result to the output file
@@ -57,13 +59,14 @@ def merge_excel_sheets(input_files, output_file):
 
 if __name__ == "__main__":
     # Check command-line arguments
-    if len(sys.argv) != 6:
-        print("Usage: python merge_sheets.py input1.xlsx input2.xlsx input3.xlsx input4.xlsx output.xlsx")
+    if len(sys.argv) != 9:
+        print("Usage: python merge_sheets.py input1.xlsx input2.xlsx input3.xlsx input4.xlsx col1 col2 col3 output.xlsx")
         sys.exit(1)
     
-    # Get input and output file paths from command-line arguments
-    input_files = sys.argv[1:5]
-    output_file = sys.argv[5]
+    # Get input files, key columns, and output file from command-line arguments
+    input_files = sys.argv[1:5]  # First 4 arguments after script name
+    key_columns = sys.argv[5:8]  # Next 3 arguments are column names
+    output_file = sys.argv[8]    # Last argument is output file
     
     # Execute the merge function
-    merge_excel_sheets(input_files, output_file)
+    merge_excel_sheets(input_files, key_columns, output_file)
