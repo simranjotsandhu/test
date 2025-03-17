@@ -1,88 +1,87 @@
 import pandas as pd
 import sys
 
-def merge_excel_sheets(input_files, key_columns, special_col, output_file):
+def merge_excel_sheets(input_files, special_col, output_file):
     """
-    Merge four Excel files based on user-specified key columns, combining conflicting values in other columns,
-    and add a 'filename' column for conflicts in the special column. Exclude rows from a file if it has multiple
-    values in the special column for the same key column values.
+    Merge four Excel files based on columns A, B, and C with special handling for a specified column.
     
     Parameters:
     input_files (list): List of four input Excel file paths.
-    key_columns (list): List of column names to use for merging (provided by user).
-    special_col (str): The special column name to check for conflicts (provided by user).
+    special_col (str): The special column to handle differently during merging.
     output_file (str): Path for the output Excel file.
     """
     try:
-        # Step 1: Read files and filter out invalid rows
+        # Step 1: Read and validate input Excel files
         dfs = []
-        for file in input_files:
+        for i, file in enumerate(input_files, start=1):
             print(f"Reading {file}")
             df = pd.read_excel(file)
-            df['filename'] = file  # Add filename column to track source
-            
-            # Validate required columns
-            missing_cols = [col for col in key_columns + [special_col] if col not in df.columns]
+            # Check for required columns: A, B, C, and the special column
+            required_cols = ['A', 'B', 'C', special_col]
+            missing_cols = [col for col in required_cols if col not in df.columns]
             if missing_cols:
                 print(f"Error: File {file} is missing columns: {', '.join(missing_cols)}")
                 sys.exit(1)
-            
-            # Check for multiple special column values for same key columns
-            grouped = df.groupby(key_columns, dropna=False)[special_col].nunique(dropna=False)
-            valid_keys = grouped[grouped <= 1].index  # Keep only groups with 1 or 0 unique values
-            if len(valid_keys) < len(grouped):
-                print(f"Warning: Excluding rows from {file} with multiple {special_col} values for same {', '.join(key_columns)}")
-            df_filtered = df[df.set_index(key_columns).index.isin(valid_keys)].reset_index(drop=True)
-            if not df_filtered.empty:
-                dfs.append(df_filtered)
-            else:
-                print(f"Warning: No valid rows remain in {file} after filtering")
+            df['file_id'] = i  # Assign file identifier based on input order
+            dfs.append(df)
         
-        if not dfs:
-            print("Error: No valid data to merge after filtering all files")
-            sys.exit(1)
-        
-        # Step 2: Concatenate filtered DataFrames
+        # Step 2: Concatenate all DataFrames
         print("Concatenating the sheets")
         combined_df = pd.concat(dfs, axis=0, ignore_index=True)
         print(f"Combined shape: {combined_df.shape}")
         
-        # Step 3: Define function to combine unique values in non-key columns
-        def combine_unique(series):
-            s = series.dropna()
-            if s.empty:
-                return ''
+        # Step 3: Group by A, B, C and process each group
+        print("Processing groups based on columns A, B, C")
+        grouped = combined_df.groupby(['A', 'B', 'C'], as_index=False)
+        merged_rows = []
+        skipped_a_values = []
+        
+        for name, group in grouped:
+            # Identify non-special columns (excluding A, B, C, special_col, and file_id)
+            non_special_cols = [col for col in group.columns if col not in ['A', 'B', 'C', special_col, 'file_id']]
+            # Check if any non-special column has multiple unique values
+            has_multiple_values = any(group[col].nunique(dropna=False) > 1 for col in non_special_cols)
+            
+            if has_multiple_values:
+                # Skip merging this group and record column A value
+                skipped_a_values.append(name[0])  # name[0] is the value of A
+                continue
+            
+            # Process the special column: concatenate values with file identifiers
+            special_values = group[[special_col, 'file_id']].dropna(subset=[special_col])
+            if not special_values.empty:
+                special_combined = ', '.join(
+                    f"{val}-{file_id}" for val, file_id in zip(special_values[special_col], special_values['file_id'])
+                )
             else:
-                return ', '.join(s.astype(str).unique())
+                special_combined = ''
+            
+            # Create the merged row for this group
+            merged_row = {'A': name[0], 'B': name[1], 'C': name[2], special_col: special_combined}
+            for col in non_special_cols:
+                # Take the first non-NaN value for non-special columns (should be unique due to check)
+                merged_row[col] = group[col].iloc[0] if not group[col].isna().all() else ''
+            merged_rows.append(merged_row)
         
-        # Step 4: Define function to aggregate filenames based on conflicts in the special column
-        def aggregate_filenames(group):
-            special_series = group[special_col].dropna()
-            if special_series.empty:
-                return ''
-            unique_values = special_series.unique()
-            if len(unique_values) <= 1:
-                return ''
-            else:
-                filenames = []
-                for val in unique_values:
-                    first_row = group[(group[special_col] == val) & group[special_col].notna()].iloc[0]
-                    filenames.append(first_row['filename'])
-                return ', '.join(filenames)
+        # Step 4: Create the merged DataFrame from processed rows
+        if merged_rows:
+            merged_df = pd.DataFrame(merged_rows)
+            print(f"Merged shape: {merged_df.shape}")
+        else:
+            print("No rows to merge after filtering")
+            merged_df = pd.DataFrame()
         
-        # Step 5: Set up aggregation dictionary
-        agg_dict = {col: 'first' if col in key_columns else combine_unique for col in combined_df.columns}
-        agg_dict['filename'] = aggregate_filenames
-        
-        # Step 6: Merge rows by grouping on key columns
-        print(f"Merging rows based on columns: {', '.join(key_columns)}")
-        merged_df = combined_df.groupby(key_columns, as_index=False, dropna=False).agg(agg_dict)
-        print(f"Merged shape: {merged_df.shape}")
-        
-        # Step 7: Write the merged DataFrame to the output file
+        # Step 5: Write the merged DataFrame to the output file
         print(f"Writing to {output_file}")
         merged_df.to_excel(output_file, index=False)
         print("Merge completed successfully!")
+        
+        # Step 6: Print skipped column A values
+        if skipped_a_values:
+            print("Skipped column A values due to multiple values in non-special columns:")
+            print(', '.join(map(str, skipped_a_values)))
+        else:
+            print("No merges were skipped.")
         
     except FileNotFoundError as e:
         print(f"Error: One of the input files was not found - {e}")
@@ -92,13 +91,15 @@ def merge_excel_sheets(input_files, key_columns, special_col, output_file):
         sys.exit(1)
 
 if __name__ == "__main__":
-    if len(sys.argv) != 10:
-        print("Usage: python merge_sheets.py input1.xlsx input2.xlsx input3.xlsx input4.xlsx key_col1 key_col2 key_col3 special_col output.xlsx")
+    # Validate command-line arguments
+    if len(sys.argv) != 7:
+        print("Usage: python merge_sheets.py input1.xlsx input2.xlsx input3.xlsx input4.xlsx special_col output.xlsx")
         sys.exit(1)
     
-    input_files = sys.argv[1:5]
-    key_columns = sys.argv[5:8]
-    special_col = sys.argv[8]
-    output_file = sys.argv[9]
+    # Extract arguments
+    input_files = sys.argv[1:5]  # First four arguments are input files
+    special_col = sys.argv[5]    # Fifth argument is the special column name
+    output_file = sys.argv[6]    # Sixth argument is the output file
     
-    merge_excel_sheets(input_files, key_columns, special_col, output_file)
+    # Run the merge function
+    merge_excel_sheets(input_files, special_col, output_file)
